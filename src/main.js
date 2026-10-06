@@ -1,10 +1,11 @@
 'use strict';
 
 const path = require('node:path');
-const { app, BrowserWindow, Menu, dialog, nativeTheme, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, screen, session, shell } = require('electron');
 const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
 const { buildAppMenu, attachContextMenu } = require('./menus');
+const { titleBarColor } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
 
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
@@ -18,6 +19,7 @@ app.userAgentFallback = chromeUserAgent(process.versions.chrome);
 app.setAppUserModelId(config.APP_ID);
 
 let mainWindow = null;
+let titleBar = null; // current title bar colour, shared by every window
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -25,6 +27,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', showMainWindow);
   app.on('web-contents-created', (_event, contents) => harden(contents));
   app.whenReady().then(() => {
+    titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
+    ipcMain.on('xuna:page-appearance', onPageAppearance);
     installPermissionHandlers();
     Menu.setApplicationMenu(buildAppMenu());
     mainWindow = createMainWindow();
@@ -40,12 +44,21 @@ function openExternal(url) {
   if (isSafeExternalUrl(url)) shell.openExternal(url).catch(() => {});
 }
 
+// src/preload.js reports the theme the XUNA page is showing; the title bars follow it.
+function onPageAppearance(event, appearance) {
+  if (!BrowserWindow.fromWebContents(event.sender) || !policy.isTrustedPage(event.senderFrame?.url)) return;
+  const color = titleBarColor(appearance);
+  if (color === titleBar) return;
+  titleBar = color;
+  for (const win of BrowserWindow.getAllWindows()) win.setAccentColor(color);
+}
+
 // Applied to every page the app shows, pop-ups included.
 function harden(contents) {
   contents.setWindowOpenHandler((details) => {
     const verdict = policy.windowOpen({ ...details, openerUrl: contents.getURL() });
     if (verdict === 'in-app') {
-      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, backgroundColor: backgroundColor() } };
+      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, backgroundColor: backgroundColor(), accentColor: titleBar } };
     }
     if (verdict === 'external') openExternal(details.url);
     return { action: 'deny' };
@@ -97,8 +110,15 @@ function createMainWindow() {
     minHeight: 500,
     title: 'XUNA AI',
     backgroundColor: backgroundColor(),
+    accentColor: titleBar, // colours the Windows title bar: black in dark mode, white in light mode
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      spellcheck: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
   });
   if (maximized) win.maximize();
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
