@@ -19,5 +19,49 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.10"
+  },
+  "build": {
+    "appId": "ai.xuna.desktop",
+    "copyright": "Copyright © XUNA AI",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "XUNA-AI-Setup.${ext}",
+      "uninstallDisplayName": "${productName}"
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "onlyLoadAppFromAsar": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "clementxuna",
+        "repo": "xuna-desktop-app",
+        "releaseType": "draft"
+      }
+    ]
   }
 }
