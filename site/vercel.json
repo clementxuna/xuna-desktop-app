@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/download",
+      "destination": "https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI-Setup.exe",
+      "permanent": false
+    }
+  ]
+}

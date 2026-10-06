@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download XUNA AI for Windows</title>
+  <meta name="description" content="Install the XUNA AI app for Windows 10 and 11. It opens your XUNA workspace in its own window and keeps itself up to date.">
+  <meta name="theme-color" content="#223ED2">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400..800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #fbfcff;
+      --ink: #0b1443;
+      --muted: #4a5272;
+      --line: #e3e7f5;
+      --brand: #223ed2;
+      --brand-hover: #1b32a8;
+      --signal: #59a3ff;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #010101;
+        --ink: #f7f7f7;
+        --muted: #a3a7b8;
+        --line: #1d2030;
+        --brand: #3a57e8;
+        --brand-hover: #5370f0;
+        color-scheme: dark;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Urbanist", "Segoe UI", system-ui, sans-serif;
+      font-size: 1.0625rem;
+      font-weight: 500;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    a:focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; border-radius: 4px; }
+
+    .page { max-width: 72rem; margin: 0 auto; padding: 0 1.5rem; }
+
+    .masthead { display: flex; align-items: center; gap: 0.625rem; padding: 1.75rem 0; font-weight: 700; font-size: 1.125rem; letter-spacing: 0.01em; }
+    .masthead img { width: 1.75rem; height: 1.75rem; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+      align-items: center;
+      gap: 2rem;
+      padding: 3rem 0 5rem;
+    }
+    .hero h1 {
+      margin: 0 0 1.25rem;
+      font-size: clamp(2.75rem, 6vw, 4.75rem);
+      line-height: 1.02;
+      font-weight: 800;
+      letter-spacing: -0.035em;
+    }
+    .lede { margin: 0 0 2.25rem; max-width: 30rem; font-size: 1.25rem; line-height: 1.5; color: var(--muted); }
+
+    .download {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.75rem;
+      border-radius: 999px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.125rem;
+      text-decoration: none;
+      transition: background-color 150ms ease;
+    }
+    .download:hover { background: var(--brand-hover); }
+    .download svg { width: 1.25rem; height: 1.25rem; }
+    .fineprint { margin: 1rem 0 0; font-size: 0.9375rem; color: var(--muted); }
+    .elsewhere { margin: 1.25rem 0 0; max-width: 30rem; padding: 0.875rem 1rem; border-left: 3px solid var(--signal); font-size: 0.9375rem; }
+    .elsewhere[hidden] { display: none; }
+
+    .mark { width: 100%; max-width: 32rem; justify-self: end; overflow: visible; }
+    .mark path { fill: none; stroke: var(--signal); stroke-width: 30; stroke-linecap: round; stroke-linejoin: round; }
+    @media (prefers-reduced-motion: no-preference) {
+      .mark path { stroke-dasharray: 834; stroke-dashoffset: 834; animation: draw 1.8s cubic-bezier(0.65, 0, 0.35, 1) 0.2s forwards; }
+    }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+
+    .install { border-top: 1px solid var(--line); padding: 3.5rem 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 2rem; }
+    .install h2 { margin: 0; font-size: 1.625rem; font-weight: 800; letter-spacing: -0.02em; }
+    .steps { margin: 0; padding: 0; list-style: none; counter-reset: step; max-width: 38rem; }
+    .steps li { counter-increment: step; position: relative; padding: 0 0 1.5rem 3rem; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0.05rem;
+      width: 2rem;
+      height: 2rem;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--signal);
+      border-radius: 50%;
+      font-weight: 800;
+      font-size: 0.9375rem;
+    }
+    .steps strong { font-weight: 700; }
+    .note { margin: 0.5rem 0 0; max-width: 38rem; color: var(--muted); font-size: 0.9375rem; }
+
+    .closing { border-top: 1px solid var(--line); padding: 2rem 0 3rem; display: flex; flex-wrap: wrap; gap: 1rem 2rem; justify-content: space-between; color: var(--muted); font-size: 0.9375rem; }
+    .closing p { margin: 0; }
+    .closing nav { display: flex; gap: 1.5rem; }
+
+    @media (max-width: 52rem) {
+      .hero { grid-template-columns: 1fr; padding: 1rem 0 3.5rem; }
+      .mark { order: -1; max-width: 13rem; justify-self: start; }
+      .install { grid-template-columns: 1fr; gap: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="masthead">
+      <img src="/icon.png" alt="" width="28" height="28">
+      <span>XUNA AI</span>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <h1>XUNA AI for Windows</h1>
+          <p class="lede">Your XUNA workspace in its own window, without a browser tab to lose. It always runs the newest XUNA, so there is nothing to update by hand.</p>
+          <a class="download" href="/download">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M10 2a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42L9 11.6V3a1 1 0 0 1 1-1ZM4 16a1 1 0 1 0 0 2h12a1 1 0 1 0 0-2H4Z"/></svg>
+            Download for Windows
+          </a>
+          <p class="fineprint">For Windows 10 and 11, 64-bit. About 115 MB.</p>
+          <p class="elsewhere" id="elsewhere" hidden>This installer is for Windows PCs. Open this page on your PC to install it, or use <a href="https://app.xuna.ai">XUNA AI in your browser</a> on this device.</p>
+        </div>
+        <svg class="mark" viewBox="0 0 500 500" aria-hidden="true">
+          <path d="M48 148V250a101 101 0 0 0 202 0a100 100 0 0 1 200 0v100"/>
+        </svg>
+      </section>
+
+      <section class="install" aria-labelledby="install-heading">
+        <h2 id="install-heading">Installing</h2>
+        <div>
+          <ol class="steps">
+            <li>Open <strong>XUNA-AI-Setup.exe</strong> from your downloads. It installs in a few seconds, adds XUNA AI to your Start menu and desktop, and opens the app.</li>
+            <li>If Windows shows <strong>Windows protected your PC</strong>, choose <strong>More info</strong>, then <strong>Run anyway</strong>. Windows shows this for apps that aren't code-signed yet.</li>
+            <li>Sign in the same way you do on the web.</li>
+          </ol>
+          <p class="note">No Run anyway button? Smart App Control on that PC blocks apps that aren't code-signed. Use <a href="https://app.xuna.ai">XUNA AI in your browser</a> there for now.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="closing">
+      <p>Already installed? XUNA AI updates itself in the background.</p>
+      <nav aria-label="More options">
+        <a href="https://github.com/clementxuna/xuna-desktop-app/releases">All versions</a>
+        <a href="https://app.xuna.ai">Open in your browser</a>
+      </nav>
+    </footer>
+  </div>
+  <script>
+    if (!/Windows/i.test(navigator.userAgent) || /Windows Phone/i.test(navigator.userAgent)) {
+      document.getElementById('elsewhere').hidden = false;
+    }
+  </script>
+</body>
+</html>
