@@ -1,0 +1,23 @@
+{
+  "name": "xuna-desktop",
+  "productName": "XUNA AI",
+  "version": "1.0.0",
+  "description": "XUNA AI for Windows",
+  "author": "XUNA AI",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": "github:clementxuna/xuna-desktop-app",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.17.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.10"
+  }
+}
