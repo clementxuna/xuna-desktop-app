@@ -24,8 +24,18 @@ test('the installer keeps one fixed file name, so the "latest" download link nev
   assert.equal(build.nsis?.artifactName, 'XUNA-AI-Setup.${ext}');
 });
 
-test('releases publish to this repo as drafts, which CI makes public once every file is uploaded', () => {
+test('installed copies update from this repo, and a manual electron-builder publish can only create a draft', () => {
   assert.deepEqual(build.publish, [{ provider: 'github', owner: 'clementxuna', repo: 'xuna-desktop-app', releaseType: 'draft' }]);
+});
+
+test('CI publishes the installer, its blockmap and latest.yml together in one gh release, never through electron-builder', () => {
+  // electron-builder's own publisher uploads files in parallel and can split them across duplicate releases.
+  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+  const installer = build.nsis.artifactName.replace('${ext}', 'exe');
+  assert.match(workflow, /electron-builder --win --publish never/);
+  assert.doesNotMatch(workflow, /--publish always/);
+  assert.match(workflow, /gh release create/);
+  for (const file of [installer, `${installer}.blockmap`, 'latest.yml']) assert.ok(workflow.includes(`dist/${file}`), `uploads dist/${file}`);
 });
 
 test('only the shell source is packaged into the app', () => {

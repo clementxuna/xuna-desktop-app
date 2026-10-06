@@ -33,14 +33,21 @@ jobs:
         shell: bash
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
 
-      - name: Build the installer and upload it to a draft release
-        run: npx electron-builder --win --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the installer
+        run: npx electron-builder --win --publish never
 
-      # Only now, with every file uploaded, does the release become public and "latest".
+      # gh keeps the release a draft until all three files are uploaded, then publishes it, so the
+      # download link never points at a half-finished release. (electron-builder's own publisher
+      # uploads in parallel and can split the files across duplicate releases.)
       - name: Publish the release
         shell: bash
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          --verify-tag
+          --title "XUNA AI ${GITHUB_REF_NAME#v}"
+          --generate-notes
+          --latest
+          dist/XUNA-AI-Setup.exe dist/XUNA-AI-Setup.exe.blockmap dist/latest.yml
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
