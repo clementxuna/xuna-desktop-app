@@ -9,6 +9,7 @@
   "repository": "github:clementxuna/xuna-desktop-app",
   "main": "src/main.js",
   "scripts": {
+    "prepare": "node scripts/use-repo-hooks.js",
     "start": "electron .",
     "test": "node --test",
     "dist": "electron-builder --win --publish never"

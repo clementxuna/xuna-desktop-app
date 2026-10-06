@@ -1,0 +1,8 @@
+#!/bin/sh
+# Refuses any push that is not to this repo's own GitHub repository.
+# `npm install` turns this on for every clone (it sets git's core.hooksPath to .githooks).
+case "$2" in
+  https://github.com/clementxuna/xuna-desktop-app|https://github.com/clementxuna/xuna-desktop-app.git) exit 0 ;;
+esac
+echo "BLOCKED: this repo only pushes to github.com/clementxuna/xuna-desktop-app (tried: $2)" >&2
+exit 1

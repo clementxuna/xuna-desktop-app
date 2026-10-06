@@ -23,7 +23,7 @@ version of XUNA: web releases appear in the app without a desktop release.
 ## Develop
 
 ```sh
-npm install
+npm install # also turns on the push guard (see "Where this repo pushes")
 npm start   # opens app.xuna.ai using a separate "XUNA AI Dev" profile
 npm test
 ```
@@ -35,6 +35,20 @@ $env:XUNA_APP_URL = 'https://beta.xuna.ai'; npm start
 ```
 
 `npm run dist` builds `dist/XUNA-AI-Setup.exe` locally without publishing it.
+
+## Where this repo pushes
+
+Only to <https://github.com/clementxuna/xuna-desktop-app>, and nothing here can push anywhere
+else by accident:
+
+- `origin` is the only remote.
+- `.githooks/pre-push` refuses a push to any other destination. `npm install` turns it on by
+  pointing git's `core.hooksPath` at `.githooks`, so after a fresh clone run `npm install`
+  before your first push.
+- `npm test` fails if any file names a GitHub repository other than this one, or if another
+  remote is added (`test/repo-safety.test.js`).
+- The XUNA web app's code is not in this repo and is never pushed from here. Web app changes
+  reach the desktop app through app.xuna.ai, with nothing to do in this repo.
 
 ## Release a new version
 
@@ -59,8 +73,12 @@ two: `npm install --save-dev electron@latest`, check the app with `npm start`, t
 
 - Direct: <https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI-Setup.exe>
 - Download page: deploy `site/` as its own Vercel project with Root Directory `site`,
-  Framework Preset "Other" and no build command. Its `/download` address redirects to
-  the newest installer.
+  Framework Preset "Other" and no build command. Create it in the Pro team, because
+  Vercel's Hobby plan is for non-commercial use. Its `/download` address redirects to the
+  newest installer. Optionally, set an Ignored Build Step so commits that don't touch
+  `site/` skip a redeploy.
+- The page follows www.xuna.ai's design system (type scale, brand blue, header, cards and
+  footer); keep it in step with the site when the site changes.
 
 ## Values that must not change
 
@@ -76,6 +94,7 @@ Also keep:
   updates for everyone already installed.
 - The `publish` owner and repo, and this repo staying public: installed copies and the
   download link both read its GitHub Releases without signing in.
+
 `test/package.test.js` checks all of these except the repo's visibility.
 
 ## Troubleshooting
@@ -86,4 +105,10 @@ Also keep:
   app.xuna.ai in a browser there until the app is signed.
 - **Microphone not working**: Windows Settings → Privacy & security → Microphone → turn on
   "Let desktop apps access your microphone".
-- App data, including the saved sign-in, lives in `%APPDATA%\XUNA AI`.
+- App data, including the saved sign-in, lives in `%APPDATA%\XUNA AI`. The app installs
+  per user to `%LOCALAPPDATA%\Programs\xuna-desktop`.
+
+## More
+
+- [docs/decisions.md](docs/decisions.md): why the app is built the way it is.
+- [docs/follow-ups.md](docs/follow-ups.md): code signing and known minor issues.
