@@ -14,7 +14,8 @@ version of XUNA: web releases appear in the app without a desktop release.
     is refused, including for other sites' frames embedded in a XUNA page
   - the app presents a standard Chrome user agent so Google sign-in works
 - The window's title bar follows the app's theme: black in dark mode, white in light
-  mode. `src/preload.js` reports the theme the page shows; it exposes nothing to the page.
+  mode (Windows 11; Windows 10 keeps its standard title bar). `src/preload.js` reports the
+  theme the page shows; it exposes nothing to the page.
 - Installed copies update themselves from this repo's GitHub Releases: they check at
   start-up and every 6 hours, download in the background and install when the app quits.
 - `site/` is the download page, deployed separately (see below).

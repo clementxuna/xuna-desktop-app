@@ -26,6 +26,11 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', showMainWindow);
   app.on('web-contents-created', (_event, contents) => harden(contents));
+  // Electron applies a window's creation-time accentColor only on its first focus, so a window that
+  // opens in the background would show Windows' own gray title bar. Applying it explicitly avoids that.
+  app.on('browser-window-created', (_event, win) => {
+    if (titleBar) win.setAccentColor(titleBar);
+  });
   app.whenReady().then(() => {
     titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
     ipcMain.on('xuna:page-appearance', onPageAppearance);
