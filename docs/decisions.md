@@ -75,6 +75,15 @@ reason for it.
   - It installs per user with one click, with no admin prompt.
   - Electron fuses harden the app binary.
 
+## Download page
+
+- **One Vercel config, at the repo root.** `vercel.json` tells Vercel to skip installing and
+  building and to serve `site/`, so a project importing the repo needs no settings. Vercel
+  reads `vercel.json` only from the project's root folder; a copy inside `site/` was ignored,
+  and the first deploy served nothing at `/`.
+- **Matches www.xuna.ai's design system**: type scale, brand blue, header, cards and footer.
+  The page links back to the site and reuses its hero video.
+
 ## Repository safety
 
 - This repo only pushes to its own GitHub repository. See "Where this repo pushes" in the

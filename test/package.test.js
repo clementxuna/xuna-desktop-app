@@ -59,8 +59,18 @@ test('settings every installed copy depends on keep their released values', () =
   assert.equal(build.nsis?.perMachine, false); // changing the install scope breaks updates
 });
 
+test('Vercel serves the site/ folder from the repo root, with no install or build step', () => {
+  // Vercel reads vercel.json from the project's root folder, so the download page works with the
+  // project's default settings (Root Directory left empty).
+  const site = JSON.parse(readRepoFile('vercel.json'));
+  assert.equal(site.outputDirectory, 'site');
+  assert.equal(site.framework, null); // "Other": a plain static site
+  assert.equal(site.installCommand, ''); // an empty string skips installing the Electron toolchain
+  assert.ok(!fs.existsSync(path.join(__dirname, '..', 'site', 'vercel.json')), 'one Vercel config, at the repo root');
+});
+
 test("the download page's /download link points at the newest release's installer", () => {
-  const site = JSON.parse(readRepoFile('site', 'vercel.json'));
+  const site = JSON.parse(readRepoFile('vercel.json'));
   const { owner, repo } = build.publish[0];
   const installer = build.nsis.artifactName.replace('${ext}', 'exe');
   const redirect = site.redirects?.find((entry) => entry.source === '/download');

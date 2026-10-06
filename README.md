@@ -72,11 +72,13 @@ two: `npm install --save-dev electron@latest`, check the app with `npm start`, t
 ## Download link
 
 - Direct: <https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI-Setup.exe>
-- Download page: deploy `site/` as its own Vercel project with Root Directory `site`,
-  Framework Preset "Other" and no build command. Create it in the Pro team, because
-  Vercel's Hobby plan is for non-commercial use. Its `/download` address redirects to the
-  newest installer. Optionally, set an Ignored Build Step so commits that don't touch
-  `site/` skip a redeploy.
+- Download page: <https://xuna-desktop-app.vercel.app>, served by a Vercel project that
+  imports this repo with the default settings (leave Root Directory empty).
+  - `vercel.json` at the repo root tells Vercel to skip installing and building and to serve
+    the `site/` folder. Its `/download` address redirects to the newest installer.
+  - Every push to `main` redeploys the page. Optionally, set an Ignored Build Step so
+    commits that touch neither `site/` nor `vercel.json` skip the redeploy.
+  - Keep the project in the Pro team, because Vercel's Hobby plan is for non-commercial use.
 - The page follows www.xuna.ai's design system (type scale, brand blue, header, cards and
   footer); keep it in step with the site when the site changes.
 
