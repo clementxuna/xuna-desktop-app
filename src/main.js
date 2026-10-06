@@ -92,10 +92,19 @@ function harden(contents) {
 function installPermissionHandlers() {
   const pageUrl = (contents, fallback) => (contents && !contents.isDestroyed() && contents.getURL()) || fallback || '';
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
-    callback(policy.permission(permission, pageUrl(contents, details.requestingUrl), details.externalURL));
+    callback(policy.permission(permission, {
+      pageUrl: pageUrl(contents, details.requestingUrl),
+      requestingUrl: details.requestingUrl,
+      externalUrl: details.externalURL,
+      mediaTypes: details.mediaTypes,
+    }));
   });
-  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin) => {
-    return policy.permission(permission, pageUrl(contents, requestingOrigin));
+  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
+    return policy.permission(permission, {
+      pageUrl: pageUrl(contents, requestingOrigin),
+      requestingUrl: requestingOrigin,
+      mediaTypes: details?.mediaType ? [details.mediaType] : undefined,
+    });
   });
 }
 
@@ -122,7 +131,10 @@ function createMainWindow() {
   });
   if (maximized) win.maximize();
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
-  win.on('closed', () => app.quit()); // sign-in and connect pop-ups have no purpose without the main window
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+    app.quit(); // sign-in and connect pop-ups have no purpose without the main window
+  });
 
   // Mouse back/forward buttons.
   win.on('app-command', (_event, command) => {
@@ -150,7 +162,12 @@ function createMainWindow() {
 }
 
 function showMainWindow() {
-  if (!mainWindow) return;
+  // The main window can be gone while the app keeps running, if quitting was cancelled by a pop-up's
+  // "Leave this page?" prompt. Opening the app again then brings back a main window.
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createMainWindow();
+    return;
+  }
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();

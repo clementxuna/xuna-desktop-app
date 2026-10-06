@@ -10,6 +10,7 @@ const pkg = require('../package.json');
 const config = require('../src/config');
 
 const build = pkg.build ?? {};
+const readRepoFile = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');
 
 test('the installer uses the same app ID that Windows notifications are sent under', () => {
   assert.equal(build.appId, config.APP_ID);
@@ -30,7 +31,7 @@ test('installed copies update from this repo, and a manual electron-builder publ
 
 test('CI publishes the installer, its blockmap and latest.yml together in one gh release, never through electron-builder', () => {
   // electron-builder's own publisher uploads files in parallel and can split them across duplicate releases.
-  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+  const workflow = readRepoFile('.github', 'workflows', 'release.yml');
   const installer = build.nsis.artifactName.replace('${ext}', 'exe');
   assert.match(workflow, /electron-builder --win --publish never/);
   assert.doesNotMatch(workflow, /--publish always/);
@@ -46,8 +47,20 @@ test('no npm script is named "release", which electron-builder would treat as pu
   assert.equal(pkg.scripts.release, undefined);
 });
 
+test('the release job keeps its write token away from install scripts and checks the tag before installing anything', () => {
+  const workflow = readRepoFile('.github', 'workflows', 'release.yml');
+  assert.match(workflow, /persist-credentials:\s*false/);
+  assert.ok(workflow.indexOf('Check the tag matches package.json') < workflow.indexOf('run: npm ci'), 'tag check runs before npm ci');
+});
+
+test('settings every installed copy depends on keep their released values', () => {
+  assert.equal(build.electronFuses?.enableCookieEncryption, true); // one-way: turning it off breaks every saved sign-in
+  assert.equal(build.nsis?.oneClick, true);
+  assert.equal(build.nsis?.perMachine, false); // changing the install scope breaks updates
+});
+
 test("the download page's /download link points at the newest release's installer", () => {
-  const site = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'site', 'vercel.json'), 'utf8'));
+  const site = JSON.parse(readRepoFile('site', 'vercel.json'));
   const { owner, repo } = build.publish[0];
   const installer = build.nsis.artifactName.replace('${ext}', 'exe');
   const redirect = site.redirects?.find((entry) => entry.source === '/download');

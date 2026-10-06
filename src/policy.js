@@ -4,8 +4,10 @@
 // imports, so every rule is covered by test/policy.test.js; src/main.js wires them into Electron.
 
 const SYSTEM_SCHEMES = new Set(['mailto:', 'tel:', 'sms:']);
+// Harmless anywhere, as in Chrome: copying to the clipboard and going fullscreen (e.g. a video).
 const ANY_PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'fullscreen']);
-const TRUSTED_PAGE_PERMISSIONS = new Set(['media', 'clipboard-read', 'notifications', 'speaker-selection']);
+// XUNA pages only. The microphone ('media', audio only) is decided separately below.
+const TRUSTED_PAGE_PERMISSIONS = new Set(['notifications', 'speaker-selection']);
 
 function parseUrl(url) {
   try {
@@ -16,6 +18,10 @@ function parseUrl(url) {
 }
 
 const isWeb = (u) => u.protocol === 'https:' || u.protocol === 'http:';
+
+// XUNA's voice features only ever ask for the microphone, so a request that includes the camera is refused.
+const isMicrophoneOnly = (types) =>
+  Array.isArray(types) && types.length > 0 && types.every((type) => type === 'audio' || type === 'unknown');
 
 // The only kinds of links the shell will ever hand to Windows.
 function isSafeExternalUrl(url) {
@@ -59,14 +65,18 @@ function createPolicy({ appUrl, trustedDomain }) {
     return 'deny';
   }
 
-  // pageUrl is the top-level page asking; externalUrl is set for 'openExternal' (a page launching a protocol handler).
-  function permission(name, pageUrl, externalUrl) {
+  // pageUrl: the top-level page. requestingUrl: the frame asking, which may be an iframe inside it.
+  // externalUrl: set for 'openExternal' (a page launching a protocol handler).
+  // mediaTypes: what a 'media' request wants ('audio', 'video'), or a check's single type ('unknown' too).
+  function permission(name, { pageUrl, requestingUrl, externalUrl, mediaTypes } = {}) {
     if (ANY_PAGE_PERMISSIONS.has(name)) return true;
     if (!isTrustedPage(pageUrl)) return false;
+    if (requestingUrl && !isTrustedPage(requestingUrl)) return false; // e.g. an uploaded file shown in an iframe
     if (name === 'openExternal') {
       const target = parseUrl(externalUrl);
       return target !== null && SYSTEM_SCHEMES.has(target.protocol);
     }
+    if (name === 'media') return isMicrophoneOnly(mediaTypes);
     return TRUSTED_PAGE_PERMISSIONS.has(name);
   }
 

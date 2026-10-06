@@ -9,9 +9,12 @@ version of XUNA: web releases appear in the app without a desktop release.
 - `src/main.js` opens app.xuna.ai and applies the rules in `src/policy.js`:
   - sign-in, payment and integration pop-ups stay inside the app; ordinary links open
     in the default browser
-  - XUNA pages get the microphone, clipboard and notifications; other sites and other
-    permissions are refused
+  - XUNA pages get the microphone (never the camera), notifications and speaker choice;
+    any page may copy to the clipboard or go fullscreen, as in Chrome; everything else
+    is refused, including for other sites' frames embedded in a XUNA page
   - the app presents a standard Chrome user agent so Google sign-in works
+- The window's title bar follows the app's theme: black in dark mode, white in light
+  mode. `src/preload.js` reports the theme the page shows; it exposes nothing to the page.
 - Installed copies update themselves from this repo's GitHub Releases: they check at
   start-up and every 6 hours, download in the background and install when the app quits.
 - `site/` is the download page, deployed separately (see below).
@@ -63,7 +66,16 @@ two: `npm install --save-dev electron@latest`, check the app with `npm start`, t
 `appId` (`ai.xuna.desktop`), `name` (`xuna-desktop`) and `productName` (`XUNA AI`) key the
 install folder, Windows notifications, the update cache and every user's saved sign-in.
 The installer's file name, `XUNA-AI-Setup.exe`, is what the download link points at.
-`test/package.test.js` guards all of them.
+
+Also keep:
+
+- `electronFuses.enableCookieEncryption: true`: this is one-way, and turning it off breaks
+  every user's saved sign-in.
+- `nsis.oneClick: true` and `nsis.perMachine: false`: changing the install scope breaks
+  updates for everyone already installed.
+- The `publish` owner and repo, and this repo staying public: installed copies and the
+  download link both read its GitHub Releases without signing in.
+`test/package.test.js` checks all of these except the repo's visibility.
 
 ## Troubleshooting
 
