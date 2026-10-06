@@ -46,9 +46,10 @@
       background: #000 radial-gradient(60% 45% at 72% 82%, rgba(40, 73, 247, 0.55), rgba(40, 73, 247, 0) 62%);
     }
     /* Stacking, as on the site: the video, then the black and white fades, then the text. */
-    .screen video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
+    .screen video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.2); }
     .screen::before, .screen::after { content: ""; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
-    .screen::before { top: 0; bottom: 0; background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.92) 22%, rgba(0, 0, 0, 0) 88%); }
+    /* Darkens only the top, behind the headline, so the blue aurora shows from mid-screen down. */
+    .screen::before { top: 0; bottom: 0; background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.7) 18%, rgba(0, 0, 0, 0) 45%); }
     .screen::after { bottom: 0; height: 24%; background: linear-gradient(rgba(255, 255, 255, 0), #fff 70%); }
     .inner {
       position: relative;
@@ -87,7 +88,8 @@
       backdrop-filter: blur(8px) saturate(1.5);
     }
     .button-ghost:hover { background: rgba(40, 40, 40, 0.5); }
-    .note { max-width: 520px; margin: 20px 0 0; font-size: 14px; line-height: 21px; color: var(--white-muted); }
+    /* The note can sit on the aurora's bright crest, so it gets a soft shadow to stay readable. */
+    .note { max-width: 520px; margin: 20px 0 0; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6); }
     .note strong { color: #fff; font-weight: 500; }
     .note a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
     .note[hidden] { display: none; }
@@ -111,8 +113,10 @@
     }
     @media (max-width: 560px) {
       .button { width: 100%; justify-content: center; }
-      /* On tall, narrow screens the aurora's bright band sits behind the text, so keep it darker for longer. */
-      .screen::before { background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.92) 40%, rgba(0, 0, 0, 0.6) 72%, rgba(0, 0, 0, 0) 92%); }
+      /* Tall, narrow screens crop the video to its centre, which loses most of the blue on its right,
+         and the text runs lower. Shift the crop towards the blue and fade a little further down. */
+      .screen video { object-position: 72% 50%; }
+      .screen::before { background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.7) 28%, rgba(0, 0, 0, 0.3) 58%, rgba(0, 0, 0, 0) 76%); }
       .screen::after { height: 18%; }
     }
     @media (prefers-reduced-motion: reduce) {
