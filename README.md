@@ -79,8 +79,9 @@ two: `npm install --save-dev electron@latest`, check the app with `npm start`, t
   - Every push to `main` redeploys the page. Optionally, set an Ignored Build Step so
     commits that touch neither `site/` nor `vercel.json` skip the redeploy.
   - Keep the project in the Pro team, because Vercel's Hobby plan is for non-commercial use.
-- The page follows www.xuna.ai's design system (type scale, brand blue, header, cards and
-  footer); keep it in step with the site when the site changes.
+- The page is a single full-screen view in www.xuna.ai's style: its type scale, brand blue
+  and hero aurora video, with no navigation. Keep it in step with the site when the site
+  changes.
 
 ## Values that must not change
 

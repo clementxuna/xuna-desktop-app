@@ -17,96 +17,51 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    /* Type, colour and components follow www.xuna.ai. */
+    /* Type, colour and the aurora background follow www.xuna.ai. */
     :root {
-      --ink: #010101;
       --ink-muted: rgba(1, 1, 1, 0.55);
       --white-muted: rgba(255, 255, 255, 0.6);
       --brand: #2849f7;
-      --footer: #11141d;
-      --hairline-dark: rgba(255, 255, 255, 0.1);
-      --hairline-light: rgba(1, 1, 1, 0.05);
+      --hairline: rgba(255, 255, 255, 0.1);
     }
 
     * { box-sizing: border-box; }
-    html { background: #fff; }
     body {
       margin: 0;
-      color: var(--ink);
+      background: #fff;
+      color: #fff;
       font-family: "Inter Tight", "Segoe UI", system-ui, sans-serif;
       font-size: 16px;
       line-height: 24px;
       -webkit-font-smoothing: antialiased;
     }
     a { color: inherit; text-decoration: none; }
-    img { display: block; }
     :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
 
-    /* Floating navigation bar */
-    .nav {
-      position: absolute;
-      top: 24px;
-      left: 24px;
-      right: 24px;
-      z-index: 10;
-      height: 69px;
-      display: flex;
-      align-items: center;
-      padding: 0 24px;
-      border: 1px solid var(--hairline-dark);
-      border-radius: 20px;
-      background: rgba(10, 10, 10, 0.4);
-      -webkit-backdrop-filter: blur(8px) saturate(1.5);
-      backdrop-filter: blur(8px) saturate(1.5);
-      color: #fff;
-    }
-    .nav .wordmark img { width: 76px; height: auto; }
-    .nav ul { display: flex; gap: 24px; margin: 0 auto; padding: 0; list-style: none; }
-    .nav ul a { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; }
-    .nav ul a:hover { color: rgba(255, 255, 255, 0.7); }
-    .nav-end { display: flex; align-items: center; gap: 20px; margin-left: auto; }
-    .status { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; line-height: 20px; }
-    .status::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; }
-    .pill-link {
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 16px;
-      padding: 6px 12px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.06);
-    }
-    .pill-link:hover { background: rgba(255, 255, 255, 0.12); }
-
-    /* Hero: the site's aurora video under the same black and white fades */
-    .hero {
+    /* One full-screen view: the site's aurora video under the same black and white fades. */
+    .screen {
       position: relative;
       overflow: hidden;
       min-height: 100svh;
       background: #000 radial-gradient(60% 45% at 72% 82%, rgba(40, 73, 247, 0.55), rgba(40, 73, 247, 0) 62%);
-      color: #fff;
     }
-    .hero video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    .hero::before, .hero::after { content: ""; position: absolute; left: 0; right: 0; pointer-events: none; }
-    .hero::before { top: 0; bottom: 0; background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.92) 22%, rgba(0, 0, 0, 0) 88%); }
-    .hero::after { bottom: 0; height: 26%; background: linear-gradient(rgba(255, 255, 255, 0), #fff 70%); }
-    .hero-inner {
+    /* Stacking, as on the site: the video, then the black and white fades, then the text. */
+    .screen video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
+    .screen::before, .screen::after { content: ""; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
+    .screen::before { top: 0; bottom: 0; background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.92) 22%, rgba(0, 0, 0, 0) 88%); }
+    .screen::after { bottom: 0; height: 24%; background: linear-gradient(rgba(255, 255, 255, 0), #fff 70%); }
+    .inner {
       position: relative;
-      z-index: 1;
+      z-index: 2;
       max-width: 832px;
       min-height: 100svh;
       margin: 0 auto;
-      padding: 220px 24px 40px;
+      padding: clamp(96px, 20vh, 220px) 24px 40px;
       display: flex;
       flex-direction: column;
     }
-    h1 {
-      margin: 0;
-      font-size: 81.6px;
-      line-height: 1.04;
-      font-weight: 500;
-      letter-spacing: -0.05em;
-    }
+
+    h1 { margin: 0; font-size: 81.6px; line-height: 1.04; font-weight: 500; letter-spacing: -0.05em; }
     h1 .accent { color: var(--brand); letter-spacing: -0.02em; }
     .lede { max-width: 520px; margin: 28px 0 0; color: var(--white-muted); }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
@@ -122,15 +77,22 @@
       line-height: 24px;
     }
     .button svg { width: 18px; height: 18px; }
-    .button-primary { background: #fff; color: var(--ink); }
+    .button-primary { background: #fff; color: #010101; }
     .button-primary:hover { background: rgba(255, 255, 255, 0.88); }
-    .button-ghost { background: rgba(255, 255, 255, 0.04); border-color: var(--hairline-dark); color: #fff; }
-    .button-ghost:hover { background: rgba(255, 255, 255, 0.1); }
-    .elsewhere { max-width: 520px; margin: 20px 0 0; font-size: 14px; line-height: 21px; color: var(--white-muted); }
-    .elsewhere[hidden] { display: none; }
-    .elsewhere a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+    .button-ghost {
+      background: rgba(10, 10, 10, 0.4);
+      border-color: var(--hairline);
+      color: #fff;
+      -webkit-backdrop-filter: blur(8px) saturate(1.5);
+      backdrop-filter: blur(8px) saturate(1.5);
+    }
+    .button-ghost:hover { background: rgba(40, 40, 40, 0.5); }
+    .note { max-width: 520px; margin: 20px 0 0; font-size: 14px; line-height: 21px; color: var(--white-muted); }
+    .note strong { color: #fff; font-weight: 500; }
+    .note a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+    .note[hidden] { display: none; }
 
-    .badges { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: auto 0 0; padding: 120px 0 0; list-style: none; }
+    .badges { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: auto 0 0; padding: 96px 0 0; list-style: none; }
     .badges li {
       display: flex;
       align-items: center;
@@ -144,217 +106,49 @@
     }
     .badges svg { width: 14px; height: 14px; color: var(--brand); }
 
-    /* Install section */
-    .install { max-width: 1128px; margin: 0 auto; padding: 96px 24px 112px; }
-    .heading { max-width: 768px; margin: 0 auto 56px; text-align: center; }
-    .eyebrow {
-      display: inline-block;
-      padding: 4px 16px;
-      border: 1px solid rgba(40, 73, 247, 0.2);
-      border-radius: 999px;
-      background: rgba(40, 73, 247, 0.1);
-      color: var(--brand);
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 16px;
-    }
-    h2 { margin: 20px 0 16px; font-size: 48px; line-height: 1.02; font-weight: 500; letter-spacing: -0.04em; }
-    .description { max-width: 672px; margin: 0 auto; font-size: 15px; line-height: 1.75; color: var(--ink-muted); }
-    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
-    .step { padding: 28px; border: 1px solid var(--hairline-light); border-radius: 24px; background: #fff; box-shadow: 0 1px 2px rgba(1, 1, 1, 0.04); }
-    .step h3 { margin: 20px 0 8px; font-size: 24px; line-height: 32px; font-weight: 500; }
-    .step p { margin: 0; font-size: 15px; line-height: 1.65; color: var(--ink-muted); }
-    .step strong { color: var(--ink); font-weight: 500; }
-    .note { max-width: 672px; margin: 32px auto 0; text-align: center; font-size: 14px; line-height: 21px; color: var(--ink-muted); }
-    .note a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
-
-    /* Footer card */
-    .footer { margin: 0 24px 24px; border-radius: 20px; background: var(--footer); color: #fff; }
-    .footer-top { padding: 40px 40px 24px; border-bottom: 1px solid var(--hairline-dark); }
-    .footer-top img { width: 124px; height: auto; }
-    .footer-columns { display: grid; grid-template-columns: 2fr repeat(4, minmax(0, 1fr)); gap: 32px; padding: 32px 40px 48px; }
-    .footer h3 { margin: 0 0 12px; font-size: 16px; line-height: 24px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
-    .footer ul { margin: 0; padding: 0; list-style: none; }
-    .footer li a, .footer address { font-size: 14px; line-height: 24px; color: rgba(255, 255, 255, 0.5); font-style: normal; }
-    .footer li a:hover { color: rgba(255, 255, 255, 0.85); }
-    .footer .links { text-align: right; }
-    .contact { display: flex; flex-wrap: wrap; gap: 8px 40px; }
-    .contact a { display: block; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.5); }
-    .footer-bottom { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; padding: 20px 40px 28px; border-top: 1px solid var(--hairline-dark); font-size: 12px; line-height: 18px; color: rgba(255, 255, 255, 0.5); }
-    .footer-bottom nav { display: flex; gap: 24px; }
-
-    @media (max-width: 1100px) {
-      .nav ul { display: none; }
-      .footer-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .footer .hq { grid-column: 1 / -1; }
-      .footer .links { text-align: left; }
-    }
     @media (max-width: 800px) {
-      .steps { grid-template-columns: 1fr; }
       h1 { font-size: clamp(44px, 12vw, 81.6px); }
-      h2 { font-size: 36px; }
-      .hero-inner { padding-top: 168px; }
     }
     @media (max-width: 560px) {
-      .nav { left: 16px; right: 16px; top: 16px; padding: 0 16px; }
-      .status { display: none; }
-      .footer { margin: 0 16px 16px; }
-      .footer-top, .footer-columns, .footer-bottom { padding-left: 24px; padding-right: 24px; }
-      .footer-columns { grid-template-columns: 1fr; }
       .button { width: 100%; justify-content: center; }
+      /* On tall, narrow screens the aurora's bright band sits behind the text, so keep it darker for longer. */
+      .screen::before { background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.92) 40%, rgba(0, 0, 0, 0.6) 72%, rgba(0, 0, 0, 0) 92%); }
+      .screen::after { height: 18%; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .hero video { display: none; }
+      .screen video { display: none; }
     }
   </style>
 </head>
 <body>
-  <header class="nav">
-    <a class="wordmark" href="https://www.xuna.ai" aria-label="XUNA AI home"><img src="/xuna-logo.png" alt="XUNA" width="76" height="18"></a>
-    <ul>
-      <li><a href="https://www.xuna.ai/integrations">Integrations</a></li>
-      <li><a href="https://www.xuna.ai/pricing">Pricing</a></li>
-      <li><a href="https://www.xuna.ai/white-label">White label</a></li>
-      <li><a href="https://www.xuna.ai/pulse">Pulse</a></li>
-      <li><a href="https://www.xuna.ai/enterprise">Enterprise</a></li>
-      <li><a href="https://www.xuna.ai/contact">Contact</a></li>
-    </ul>
-    <div class="nav-end">
-      <a class="status" href="https://www.xuna.ai/status">Status</a>
-      <a class="pill-link" href="https://app.xuna.ai">Open web app</a>
+  <main class="screen">
+    <video autoplay muted loop playsinline preload="auto" aria-hidden="true">
+      <source src="https://www.xuna.ai/video/hero-bg-v2.mp4" type="video/mp4">
+    </video>
+    <div class="inner">
+      <h1>XUNA AI for <span class="accent">Windows</span></h1>
+      <p class="lede">Your XUNA workspace in its own window, without a browser tab to lose. It updates itself, so it's always the newest XUNA.</p>
+      <div class="actions">
+        <a class="button button-primary" href="/download">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M10 2a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42L9 11.6V3a1 1 0 0 1 1-1ZM4 16a1 1 0 1 0 0 2h12a1 1 0 1 0 0-2H4Z"/></svg>
+          Download for Windows
+        </a>
+        <a class="button button-ghost" href="https://app.xuna.ai">Open in your browser</a>
+      </div>
+      <p class="note" id="install-note">The app isn't code-signed yet. If your browser or Windows warns you, choose <strong>Keep</strong>, then <strong>More info</strong> and <strong>Run anyway</strong>.</p>
+      <p class="note" id="elsewhere" hidden>This installer is for Windows PCs. Open this page on your PC to install it, or use <a href="https://app.xuna.ai">XUNA AI in your browser</a> on this device.</p>
+      <ul class="badges">
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Windows 10 &amp; 11</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>64-bit</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>About 115 MB</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Updates automatically</li>
+      </ul>
     </div>
-  </header>
-
-  <main>
-    <section class="hero">
-      <video autoplay muted loop playsinline preload="auto" aria-hidden="true">
-        <source src="https://www.xuna.ai/video/hero-bg-v2.mp4" type="video/mp4">
-      </video>
-      <div class="hero-inner">
-        <h1>XUNA AI for <span class="accent">Windows</span></h1>
-        <p class="lede">Your XUNA workspace in its own window, without a browser tab to lose. It updates itself, so it's always the newest XUNA.</p>
-        <div class="actions">
-          <a class="button button-primary" href="/download">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M10 2a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42L9 11.6V3a1 1 0 0 1 1-1ZM4 16a1 1 0 1 0 0 2h12a1 1 0 1 0 0-2H4Z"/></svg>
-            Download for Windows
-          </a>
-          <a class="button button-ghost" href="https://app.xuna.ai">Open in your browser</a>
-        </div>
-        <p class="elsewhere" id="elsewhere" hidden>This installer is for Windows PCs. Open this page on your PC to install it, or use <a href="https://app.xuna.ai">XUNA AI in your browser</a> on this device.</p>
-        <ul class="badges">
-          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Windows 10 &amp; 11</li>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>64-bit</li>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>About 115 MB</li>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Updates automatically</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="install" aria-labelledby="install-heading">
-      <div class="heading">
-        <span class="eyebrow">Install</span>
-        <h2 id="install-heading">Up and running in a minute</h2>
-        <p class="description">One download and three quick steps. After that, XUNA AI keeps itself up to date in the background.</p>
-      </div>
-      <ol class="steps">
-        <li class="step">
-          <span class="eyebrow">Step 1</span>
-          <h3>Download</h3>
-          <p>Save <strong>XUNA-AI-Setup.exe</strong>. If your browser says the file isn't commonly downloaded, choose <strong>Keep</strong>.</p>
-        </li>
-        <li class="step">
-          <span class="eyebrow">Step 2</span>
-          <h3>Install</h3>
-          <p>Open the file. If Windows shows <strong>Windows protected your PC</strong>, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
-        </li>
-        <li class="step">
-          <span class="eyebrow">Step 3</span>
-          <h3>Sign in</h3>
-          <p>XUNA AI opens as soon as it's installed. Sign in the same way you do on the web.</p>
-        </li>
-      </ol>
-      <p class="note">Windows shows these warnings because the app isn't code-signed yet. If there's no Run anyway option, Smart App Control is blocking unsigned apps on that PC. Use <a href="https://app.xuna.ai">XUNA AI in your browser</a> there for now.</p>
-    </section>
   </main>
-
-  <footer class="footer">
-    <div class="footer-top">
-      <a href="https://www.xuna.ai" aria-label="XUNA AI home"><img src="/xuna-logo.png" alt="XUNA" width="124" height="30"></a>
-    </div>
-    <div class="footer-columns">
-      <div class="hq">
-        <h3>Headquarters</h3>
-        <div class="contact">
-          <a href="https://share.google/KGxpzebT5yKuAhhQH">3701 Midtown Dr<br>Tampa, FL 33607</a>
-          <div>
-            <a href="tel:+18555859862">(855) 585-9862</a>
-            <a href="mailto:team@xuna.ai">team@xuna.ai</a>
-          </div>
-        </div>
-      </div>
-      <nav class="links" aria-label="Products">
-        <h3>Products</h3>
-        <ul>
-          <li><a href="https://www.xuna.ai/voice">Voice</a></li>
-          <li><a href="https://www.xuna.ai/sms">iMessage &amp; SMS</a></li>
-          <li><a href="https://www.xuna.ai/whatsapp">WhatsApp</a></li>
-          <li><a href="https://www.xuna.ai/chat">Chat</a></li>
-          <li><a href="https://www.xuna.ai/ringless-vm">Ringless VM</a></li>
-          <li><a href="https://www.xuna.ai/crm">CRM</a></li>
-        </ul>
-      </nav>
-      <nav class="links" aria-label="Industries">
-        <h3>Industries</h3>
-        <ul>
-          <li><a href="https://www.xuna.ai/industry/automotive">Automotive</a></li>
-          <li><a href="https://www.xuna.ai/industry/hospitality">Hospitality</a></li>
-          <li><a href="https://www.xuna.ai/industry/travel">Travel</a></li>
-          <li><a href="https://www.xuna.ai/industry/wellness-and-spa">Wellness &amp; Med Spa</a></li>
-          <li><a href="https://www.xuna.ai/industry/healthcare">Healthcare</a></li>
-          <li><a href="https://www.xuna.ai/industry/agencies">Agencies</a></li>
-          <li><a href="https://www.xuna.ai/industry/insurance">Insurance</a></li>
-          <li><a href="https://www.xuna.ai/industry/ecommerce">eCommerce</a></li>
-          <li><a href="https://www.xuna.ai/industry/every-business">Every Business</a></li>
-        </ul>
-      </nav>
-      <nav class="links" aria-label="Compare">
-        <h3>Compare</h3>
-        <ul>
-          <li><a href="https://www.xuna.ai/compare/elevenlabs">ElevenLabs</a></li>
-          <li><a href="https://www.xuna.ai/compare/vapi">VAPI</a></li>
-          <li><a href="https://www.xuna.ai/compare/retell">Retell AI</a></li>
-          <li><a href="https://www.xuna.ai/compare/synthflow">Synthflow</a></li>
-          <li><a href="https://www.xuna.ai/compare/deepgram">Deepgram</a></li>
-          <li><a href="https://www.xuna.ai/compare/vocode">Vocode</a></li>
-          <li><a href="https://www.xuna.ai/compare/bland-ai">Bland AI</a></li>
-          <li><a href="https://www.xuna.ai/compare/play-ai">Play.AI</a></li>
-        </ul>
-      </nav>
-      <nav class="links" aria-label="Resources">
-        <h3>Resources</h3>
-        <ul>
-          <li><a href="https://trust.xuna.ai">Trust Center</a></li>
-          <li><a href="https://www.xuna.ai/white-label">White Label</a></li>
-          <li><a href="https://www.xuna.ai/pulse">Pulse</a></li>
-          <li><a href="https://www.xuna.ai/integrations">Integrations</a></li>
-          <li><a href="https://www.xuna.ai/enterprise">Enterprise</a></li>
-          <li><a href="https://www.xuna.ai/contact">Contact</a></li>
-          <li><a href="https://www.xuna.ai/glossary">Glossary</a></li>
-          <li><a href="https://www.xuna.ai/changelog">Changelog</a></li>
-        </ul>
-      </nav>
-    </div>
-    <div class="footer-bottom">
-      <span>© 2026 XUNA AI. All rights reserved.</span>
-      <nav aria-label="Legal">
-        <a href="https://www.xuna.ai/privacy-policy">Privacy Policy</a>
-        <a href="https://www.xuna.ai/terms-of-service">Terms &amp; Conditions</a>
-      </nav>
-    </div>
-  </footer>
-
   <script>
+    // On phones and Macs, swap the install note for a pointer to a Windows PC or the web app.
     if (!/Windows/i.test(navigator.userAgent) || /Windows Phone/i.test(navigator.userAgent)) {
+      document.getElementById('install-note').hidden = true;
       document.getElementById('elsewhere').hidden = false;
     }
   </script>

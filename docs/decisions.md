@@ -81,8 +81,12 @@ reason for it.
   building and to serve `site/`, so a project importing the repo needs no settings. Vercel
   reads `vercel.json` only from the project's root folder; a copy inside `site/` was ignored,
   and the first deploy served nothing at `/`.
-- **Matches www.xuna.ai's design system**: type scale, brand blue, header, cards and footer.
-  The page links back to the site and reuses its hero video.
+- **One full-screen view in www.xuna.ai's style**: its type scale, brand blue and hero aurora
+  video, with no navigation.
+  - A one-line note under the buttons covers the unsigned-app warnings. On phones and Macs it
+    points people to a Windows PC instead.
+  - The fades sit above the video, as on the site, so text stays on dark wherever the aurora
+    falls.
 
 ## Repository safety
 
