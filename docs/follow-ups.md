@@ -5,7 +5,8 @@
 The Mac build stops working when either of these expires. Replace the variable in the
 Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
 
-- **GitHub token** (`GH_TOKEN`): expires GH_TOKEN_EXPIRY.
+- **GitHub token** (`GH_TOKEN`): expires on October 6, 2027. It is the fine-grained token
+  `codemagic-xuna-desktop-releases` on the clementxuna GitHub account.
 - **Developer ID Application certificate** (`CSC_LINK`, `CSC_KEY_PASSWORD`): expires
   CERT_EXPIRY. Apps signed before then keep working.
 - The App Store Connect API key doesn't expire, but stops working if it is revoked.
