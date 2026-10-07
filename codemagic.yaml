@@ -41,14 +41,18 @@ workflows:
 
       # electron-builder signs with the Developer ID certificate in CSC_LINK, then notarizes with the
       # App Store Connect API key and staples the ticket to the app. The key file never enters the repo folder.
+      # Without the secrets it builds an unsigned app, which the next step rejects.
       - name: Build, sign and notarize
         script: |
           set -eu
           key_dir="$(mktemp -d)"
-          export APPLE_API_KEY="$key_dir/AuthKey_$APPLE_API_KEY_ID.p8"
-          echo "$APPLE_API_KEY_P8" | base64 --decode > "$APPLE_API_KEY"
+          if [ -n "${APPLE_API_KEY_P8:-}" ]; then
+            export APPLE_API_KEY="$key_dir/AuthKey_$APPLE_API_KEY_ID.p8"
+            echo "$APPLE_API_KEY_P8" | base64 --decode > "$APPLE_API_KEY"
+          fi
           npx electron-builder --mac --publish never
           rm -rf "$key_dir"
+          ls -lh dist
 
       # electron-builder skips signing or notarizing, with only a warning, when a secret is missing.
       # These checks fail the build instead, before anything is uploaded.
