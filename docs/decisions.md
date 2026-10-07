@@ -49,6 +49,9 @@ reason for it.
 
 ## Title bar
 
+- **On Mac, the standard title bar.** It follows macOS's light or dark mode. Matching XUNA's
+  own theme setting would mean overriding the system theme, which the page also reads, so a
+  page set to follow the system would get stuck on whichever colour it last showed.
 - **Windows' own title bar, recoloured:** black (the app's `#010101`) in dark mode, white in
   light mode. It uses Electron's `accentColor`, which sets Windows' caption colour, rather than
   a custom-drawn bar, so snapping, dragging and the window menu stay native. This needs
@@ -59,10 +62,41 @@ reason for it.
 - **The colour is applied to every window as it is created,** because Electron otherwise waits
   for the window's first focus and shows Windows' gray until then.
 
+## Mac
+
+- **Same code, same repo, same release.** The Mac differences are a few `process.platform`
+  checks in `src/main.js` and `src/menus.js`, plus the `mac` and `dmg` sections of the
+  build settings.
+- **It behaves like a Mac app.** Closing the window keeps the app in the Dock, and clicking
+  the Dock icon opens a new window. It has the app menu (About, Hide, Quit) and the Window
+  menu, and ⌘[ and ⌘] go back and forward, as in Chrome. It presents Chrome for Mac's user
+  agent.
+- **One universal download** for Apple silicon and Intel, with a fixed name,
+  `XUNA-AI.dmg`, so the "latest" link never changes. Installed copies update from the zip
+  next to it, `XUNA-AI-mac.zip`, which is what electron-updater uses on Mac. Electron 44
+  needs macOS 13 or later.
+- **Signed with a Developer ID certificate and notarized by Apple**, so it opens without a
+  warning. The hardened runtime is on, with only the entitlements Electron's JavaScript
+  engine needs plus the microphone; the app never asks for the camera.
+- **Built on Codemagic**, because signing and notarizing need a Mac. Codemagic waits for the
+  GitHub Actions job to make the release public and then adds the Mac files to it. Only the
+  Windows job creates releases, so a version is never split across two releases.
+  electron-builder only warns when a signing secret is missing, so the workflow checks the
+  signature, the hardened runtime, the stapled notarization ticket and both architectures
+  before uploading anything.
+- **Codemagic's GitHub token can only write to this repo**: it is a fine-grained token with
+  Contents access to this repository and nothing else.
+- **No push notification service.** XUNA's notifications come from the open page (no web
+  push), and the signed app shows them as native macOS notifications under its bundle ID.
+- **Icon:** the XUNA mark in the Windows icon's blue, on a dark tile with the download
+  page's blue glow, drawn on Apple's icon grid (an 824-pixel tile on a 1024-pixel canvas)
+  from the vector logomark.
+
 ## Releases
 
-- A `v*` tag makes GitHub Actions build the installer, and installed copies update from this
-  repo's GitHub Releases. That is why the repo must stay public.
+- A `v*` tag makes GitHub Actions build the Windows installer and Codemagic the Mac app,
+  and installed copies update from this repo's GitHub Releases. That is why the repo must
+  stay public.
 - electron-builder only builds (`--publish never`). `gh release create` uploads the installer,
   its blockmap and `latest.yml` to a draft and publishes it once all three are in.
   electron-builder's own publisher uploaded the files in parallel and split v1.0.0 across two
@@ -83,8 +117,12 @@ reason for it.
   and the first deploy served nothing at `/`.
 - **One full-screen view in www.xuna.ai's style**: its type scale, brand blue and hero aurora
   video, with no navigation.
-  - A one-line note under the buttons covers the unsigned-app warnings. On phones and Macs it
-    points people to a Windows PC instead.
+  - It picks the Mac or Windows version from the visitor's browser before the page is
+    drawn, and the note under the buttons links to the other one.
+  - On Windows, that note covers the unsigned-app warnings; on Mac, it says to drag the app
+    into Applications. Phones, tablets and other systems get a note pointing them to a
+    computer instead. `/download`, the page's original link, still goes to the Windows
+    installer.
   - The fades sit above the video, as on the site, so text stays on dark wherever the aurora
     falls.
 

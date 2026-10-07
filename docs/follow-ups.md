@@ -1,15 +1,27 @@
 # Follow-ups
 
+## Renewals
+
+The Mac build stops working when either of these expires. Replace the variable in the
+Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
+
+- **GitHub token** (`GH_TOKEN`): expires GH_TOKEN_EXPIRY.
+- **Developer ID Application certificate** (`CSC_LINK`, `CSC_KEY_PASSWORD`): expires
+  CERT_EXPIRY. Apps signed before then keep working.
+- The App Store Connect API key doesn't expire, but stops working if it is revoked.
+
 ## Worth doing
 
-- **Code signing.** It removes the "Windows protected your PC" warning, and the cases where
-  Smart App Control blocks the installer outright.
+- **Windows code signing.** It removes the "Windows protected your PC" warning, and the
+  cases where Smart App Control blocks the installer outright.
   - Microsoft's Azure code-signing service costs about $10 a month and needs identity
     verification.
   - It works with electron-builder through `win.azureSignOptions`, with no code changes.
   - Switching from unsigned to signed doesn't break updates.
 - **Keep Electron current**, roughly monthly, for Chromium security fixes. See "Release a new
   version" in the README.
+- **Check the first Mac update.** Updating from one Mac release to the next hasn't been
+  tried yet; the first chance is the release after 1.1.0.
 
 ## Known minor issues
 
@@ -32,7 +44,8 @@ None of these is visible to users today.
   - When XUNA's theme differs from Windows', the bar flips once at launch, and the Alt menu
     bar and the window border keep Windows' colours.
   - The bar doesn't change colour while the offline page is showing.
-  - Windows 10 keeps its standard bar.
+  - Windows 10 keeps its standard bar, and on Mac the bar follows macOS's light or dark
+    mode rather than XUNA's theme setting.
 - **Title bar internals:**
   - Theme reports could be limited explicitly to the main window.
   - The preload could guard against very early theme changes and batch its reports.
