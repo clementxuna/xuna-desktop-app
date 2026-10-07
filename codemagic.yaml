@@ -1,0 +1,97 @@
+# Builds the Mac app on Codemagic and adds it to the GitHub Release for the same version tag (v1.2.3).
+# GitHub Actions (.github/workflows/release.yml) builds the Windows installer and creates that release;
+# this workflow waits for it, then uploads the Mac files. Installed Mac copies update from the newest release.
+#
+# Started by hand from a branch instead of a tag, it builds, signs, notarizes and checks the app but
+# uploads nothing, which tests the signing setup without a release.
+#
+# The secrets are in the Codemagic environment group "xuna_mac_release" (see "Mac builds" in the README).
+
+workflows:
+  mac-release:
+    name: Mac release
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+    environment:
+      groups:
+        - xuna_mac_release
+      vars:
+        GH_REPO: clementxuna/xuna-desktop-app
+      node: 24
+    scripts:
+      - name: Check the tag matches package.json
+        script: |
+          if [ -n "${CM_TAG:-}" ]; then
+            test "v$(node -p "require('./package.json').version")" = "$CM_TAG"
+          else
+            echo "Not a tag build: the app is built and checked, but not uploaded."
+          fi
+
+      - name: Install dependencies
+        script: npm ci
+
+      - name: Run tests
+        script: npm test
+
+      # electron-builder signs with the Developer ID certificate in CSC_LINK, then notarizes with the
+      # App Store Connect API key and staples the ticket to the app. The key file never enters the repo folder.
+      - name: Build, sign and notarize
+        script: |
+          set -eu
+          key_dir="$(mktemp -d)"
+          export APPLE_API_KEY="$key_dir/AuthKey_$APPLE_API_KEY_ID.p8"
+          echo "$APPLE_API_KEY_P8" | base64 --decode > "$APPLE_API_KEY"
+          npx electron-builder --mac --publish never
+          rm -rf "$key_dir"
+
+      # electron-builder skips signing or notarizing, with only a warning, when a secret is missing.
+      # These checks fail the build instead, before anything is uploaded.
+      - name: Check signing and notarization
+        script: |
+          set -eu
+          app="dist/mac-universal/XUNA AI.app"
+          fail() { echo "$1" >&2; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$app"
+          details="$(codesign --display --verbose=4 "$app" 2>&1)"
+          echo "$details"
+          case "$details" in *"Authority=Developer ID Application"*) ;; *) fail "Not signed with the Developer ID certificate." ;; esac
+          case "$details" in *"(runtime)"*) ;; *) fail "The hardened runtime is off, so Apple would refuse to notarize the app." ;; esac
+          xcrun stapler validate "$app" || fail "No notarization ticket is stapled to the app."
+          archs="$(lipo -archs "$app/Contents/MacOS/XUNA AI")"
+          echo "Architectures: $archs"
+          case " $archs " in *" arm64 "*) ;; *) fail "The app has no Apple silicon code." ;; esac
+          case " $archs " in *" x86_64 "*) ;; *) fail "The app has no Intel code." ;; esac
+          spctl --assess --type execute --verbose=4 "$app" || true # informational: build machines may run with Gatekeeper off
+
+      # Waits until GitHub Actions has published the release, so the Windows job stays the only one that
+      # creates releases and a version is never split across two of them.
+      - name: Add the Mac files to the GitHub release
+        script: |
+          set -eu
+          if [ -z "${CM_TAG:-}" ]; then
+            echo "Not a tag build: skipping the upload."
+            exit 0
+          fi
+          published=""
+          for attempt in $(seq 1 60); do
+            if [ "$(gh release view "$CM_TAG" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then published=yes; break; fi
+            echo "Waiting for GitHub Actions to publish release $CM_TAG ($attempt/60)"
+            sleep 30
+          done
+          if [ -z "$published" ]; then
+            echo "Release $CM_TAG wasn't published within 30 minutes. Check the GitHub Actions run, then rebuild this one." >&2
+            exit 1
+          fi
+          gh release upload "$CM_TAG" --clobber \
+            dist/XUNA-AI.dmg dist/XUNA-AI-mac.zip dist/XUNA-AI-mac.zip.blockmap dist/latest-mac.yml
+
+    artifacts:
+      - dist/XUNA-AI.dmg
+      - dist/XUNA-AI-mac.zip
+      - dist/latest-mac.yml

@@ -2,7 +2,7 @@
   "name": "xuna-desktop",
   "productName": "XUNA AI",
   "version": "1.0.2",
-  "description": "XUNA AI for Windows",
+  "description": "XUNA AI for Mac and Windows",
   "author": "XUNA AI",
   "license": "UNLICENSED",
   "private": true,
@@ -12,7 +12,8 @@
     "prepare": "node scripts/use-repo-hooks.js",
     "start": "electron .",
     "test": "node --test",
-    "dist": "electron-builder --win --publish never"
+    "dist": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -48,6 +49,35 @@
       "perMachine": false,
       "artifactName": "XUNA-AI-Setup.${ext}",
       "uninstallDisplayName": "${productName}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon-mac.png",
+      "category": "public.app-category.productivity",
+      "artifactName": "XUNA-AI-mac.${ext}",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "XUNA uses the microphone for voice agents and calls."
+      },
+      "notarize": true
+    },
+    "dmg": {
+      "artifactName": "XUNA-AI.${ext}"
     },
     "electronFuses": {
       "runAsNode": false,

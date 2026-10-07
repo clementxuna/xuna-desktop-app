@@ -1,6 +1,6 @@
 'use strict';
 
-// Packaging settings other files depend on: Windows identity, the download link and the release flow.
+// Packaging settings other files depend on: Windows and Mac identity, the download links and the release flow.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -39,6 +39,43 @@ test('CI publishes the installer, its blockmap and latest.yml together in one gh
   for (const file of [installer, `${installer}.blockmap`, 'latest.yml']) assert.ok(workflow.includes(`dist/${file}`), `uploads dist/${file}`);
 });
 
+test('the Mac download keeps one fixed file name, so its "latest" link never changes', () => {
+  assert.equal(build.dmg?.artifactName, 'XUNA-AI.${ext}');
+  assert.equal(build.mac?.artifactName, 'XUNA-AI-mac.${ext}'); // the zip that installed copies update from
+});
+
+test('the Mac app is one universal build, signed with the hardened runtime and notarized', () => {
+  const targets = build.mac?.target ?? [];
+  assert.deepEqual(targets.map((entry) => entry.target).sort(), ['dmg', 'zip']); // the updater needs the zip
+  for (const entry of targets) assert.deepEqual(entry.arch, ['universal']); // Apple silicon and Intel in one download
+  assert.equal(build.mac.hardenedRuntime, true);
+  assert.equal(build.mac.notarize, true);
+  // macOS closes an app that uses the microphone without saying why it needs it.
+  assert.ok(build.mac.extendInfo?.NSMicrophoneUsageDescription);
+});
+
+test('the Mac app may use the microphone but not the camera', () => {
+  for (const key of ['entitlements', 'entitlementsInherit']) {
+    const plist = readRepoFile(build.mac[key]);
+    assert.match(plist, /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\/>/, key);
+    assert.doesNotMatch(plist, /com\.apple\.security\.device\.camera/, key);
+  }
+});
+
+test('Codemagic builds the Mac app and adds it to the release GitHub Actions creates', () => {
+  // Only the Windows job creates releases, so a version is never split across two of them.
+  const workflow = readRepoFile('codemagic.yaml');
+  assert.match(workflow, /electron-builder --mac --publish never/);
+  assert.doesNotMatch(workflow, /--publish always/);
+  assert.match(workflow, /gh release upload/);
+  assert.doesNotMatch(workflow, /gh release create/);
+  const dmg = build.dmg.artifactName.replace('${ext}', 'dmg');
+  const zip = build.mac.artifactName.replace('${ext}', 'zip');
+  for (const file of [dmg, zip, `${zip}.blockmap`, 'latest-mac.yml']) assert.ok(workflow.includes(`dist/${file}`), `uploads dist/${file}`);
+  assert.ok(workflow.indexOf('Check the tag matches package.json') < workflow.indexOf('npm ci'), 'tag check runs before npm ci');
+  assert.match(workflow, /xcrun stapler validate/); // fails the build if notarization was skipped
+});
+
 test('only the shell source is packaged into the app', () => {
   assert.deepEqual(build.files, ['src/**/*', 'package.json']);
 });
@@ -69,11 +106,18 @@ test('Vercel serves the site/ folder from the repo root, with no install or buil
   assert.ok(!fs.existsSync(path.join(__dirname, '..', 'site', 'vercel.json')), 'one Vercel config, at the repo root');
 });
 
-test("the download page's /download link points at the newest release's installer", () => {
+test("the download page's links point at the newest release's installers", () => {
   const site = JSON.parse(readRepoFile('vercel.json'));
   const { owner, repo } = build.publish[0];
-  const installer = build.nsis.artifactName.replace('${ext}', 'exe');
-  const redirect = site.redirects?.find((entry) => entry.source === '/download');
-  assert.equal(redirect?.destination, `https://github.com/${owner}/${repo}/releases/latest/download/${installer}`);
-  assert.equal(redirect?.permanent, false); // a 307, so browsers never cache where it points
+  const latest = `https://github.com/${owner}/${repo}/releases/latest/download/`;
+  const expected = {
+    '/download': build.nsis.artifactName.replace('${ext}', 'exe'), // the original Windows link, kept for links already shared
+    '/download/windows': build.nsis.artifactName.replace('${ext}', 'exe'),
+    '/download/mac': build.dmg.artifactName.replace('${ext}', 'dmg'),
+  };
+  for (const [source, file] of Object.entries(expected)) {
+    const redirect = site.redirects?.find((entry) => entry.source === source);
+    assert.equal(redirect?.destination, latest + file, source);
+    assert.equal(redirect?.permanent, false, source); // a 307, so browsers never cache where it points
+  }
 });
