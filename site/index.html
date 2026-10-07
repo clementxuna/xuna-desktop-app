@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Download for Windows | XUNA AI</title>
-  <meta name="description" content="Install XUNA AI on Windows 10 and 11. Your XUNA workspace in its own window, always up to date.">
-  <meta property="og:title" content="XUNA AI for Windows">
-  <meta property="og:description" content="Install XUNA AI on Windows 10 and 11. Your XUNA workspace in its own window, always up to date.">
+  <title>Download for Mac and Windows | XUNA AI</title>
+  <meta name="description" content="Install XUNA AI on your Mac or Windows PC. Your XUNA workspace in its own window, always up to date.">
+  <meta property="og:title" content="XUNA AI for Mac and Windows">
+  <meta property="og:description" content="Install XUNA AI on your Mac or Windows PC. Your XUNA workspace in its own window, always up to date.">
   <meta property="og:image" content="https://www.xuna.ai/XUNA-og.jpg">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
@@ -16,6 +16,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    // Picks the Mac or Windows version of the page before it is drawn. Phones, tablets and other
+    // systems get a note pointing them to a computer; Apple devices see the Mac version, others Windows.
+    (function () {
+      var ua = navigator.userAgent;
+      var touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1; // iPadOS presents itself as a Mac
+      var mobile = touchMac || /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+      var mac = /Macintosh|iPhone|iPad|iPod/.test(ua);
+      var desktop = !mobile && (mac || /Windows NT/.test(ua));
+      document.documentElement.className = (mac ? 'os-mac' : 'os-windows') + (desktop ? '' : ' os-elsewhere');
+    })();
+  </script>
   <style>
     /* Type, colour and the aurora background follow www.xuna.ai. */
     :root {
@@ -92,7 +104,9 @@
     .note { max-width: 520px; margin: 20px 0 0; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6); }
     .note strong { color: #fff; font-weight: 500; }
     .note a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
-    .note[hidden] { display: none; }
+    /* One page for both systems: the script in <head> marks <html> with os-mac or os-windows. */
+    html.os-mac .windows-only, html:not(.os-mac) .mac-only { display: none; }
+    html.os-elsewhere .install-note, html:not(.os-elsewhere) .elsewhere { display: none; }
 
     .badges { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: auto 0 0; padding: 96px 0 0; list-style: none; }
     .badges li {
@@ -130,18 +144,29 @@
       <source src="https://www.xuna.ai/video/hero-bg-v2.mp4" type="video/mp4">
     </video>
     <div class="inner">
-      <h1>XUNA AI for <span class="accent">Windows</span></h1>
+      <h1>XUNA AI for <span class="accent mac-only">Mac</span><span class="accent windows-only">Windows</span></h1>
       <p class="lede">Your XUNA workspace in its own window, without a browser tab to lose. It updates itself, so it's always the newest XUNA.</p>
       <div class="actions">
-        <a class="button button-primary" href="/download">
+        <a class="button button-primary mac-only" href="/download/mac">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+          Download for Mac
+        </a>
+        <a class="button button-primary windows-only" href="/download/windows">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M2 2h7.5v7.5H2zm8.5 0H18v7.5h-7.5zM2 10.5h7.5V18H2zm8.5 0H18V18h-7.5z"/></svg>
           Download for Windows
         </a>
         <a class="button button-ghost" href="https://app.xuna.ai">Open in your browser</a>
       </div>
-      <p class="note" id="install-note">The app isn't code-signed yet. If your browser or Windows warns you, choose <strong>Keep</strong>, then <strong>More info</strong> and <strong>Run anyway</strong>.</p>
-      <p class="note" id="elsewhere" hidden>This installer is for Windows PCs. Open this page on your PC to install it, or use <a href="https://app.xuna.ai">XUNA AI in your browser</a> on this device.</p>
-      <ul class="badges">
+      <p class="note install-note mac-only">Open the download and drag <strong>XUNA AI</strong> into <strong>Applications</strong>. Also available for <a href="/download/windows">Windows</a>.</p>
+      <p class="note install-note windows-only">The app isn't code-signed yet. If your browser or Windows warns you, choose <strong>Keep</strong>, then <strong>More info</strong> and <strong>Run anyway</strong>. Also available for <a href="/download/mac">Mac</a>.</p>
+      <p class="note elsewhere">The app is for Mac and Windows computers. Open this page on your computer to install it, or use <a href="https://app.xuna.ai">XUNA AI in your browser</a> on this device.</p>
+      <ul class="badges mac-only">
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>macOS 13 or later</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Apple silicon &amp; Intel</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>About MAC_SIZE MB</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Updates automatically</li>
+      </ul>
+      <ul class="badges windows-only">
         <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Windows 10 &amp; 11</li>
         <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>64-bit</li>
         <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>About 115 MB</li>
@@ -149,12 +174,5 @@
       </ul>
     </div>
   </main>
-  <script>
-    // On phones and Macs, swap the install note for a pointer to a Windows PC or the web app.
-    if (!/Windows/i.test(navigator.userAgent) || /Windows Phone/i.test(navigator.userAgent)) {
-      document.getElementById('install-note').hidden = true;
-      document.getElementById('elsewhere').hidden = false;
-    }
-  </script>
 </body>
 </html>

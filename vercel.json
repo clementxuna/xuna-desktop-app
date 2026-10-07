@@ -8,6 +8,16 @@
       "source": "/download",
       "destination": "https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI-Setup.exe",
       "permanent": false
+    },
+    {
+      "source": "/download/windows",
+      "destination": "https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI-Setup.exe",
+      "permanent": false
+    },
+    {
+      "source": "/download/mac",
+      "destination": "https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI.dmg",
+      "permanent": false
     }
   ]
 }
