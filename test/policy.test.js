@@ -172,7 +172,12 @@ test('isSafeExternalUrl accepts web, email, phone and SMS links only', () => {
 });
 
 test('chromeUserAgent reads as desktop Chrome with a reduced version and no Electron token', () => {
-  const ua = chromeUserAgent('152.0.7977.78');
+  const ua = chromeUserAgent('152.0.7977.78', 'win32');
   assert.equal(ua, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36');
   assert.doesNotMatch(ua, /Electron/);
+});
+
+test('chromeUserAgent reads as Chrome for Mac on macOS', () => {
+  const ua = chromeUserAgent('152.0.7977.78', 'darwin');
+  assert.equal(ua, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36');
 });

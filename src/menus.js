@@ -2,6 +2,8 @@
 
 const { app, BrowserWindow, Menu, clipboard, dialog } = require('electron');
 
+const IS_MAC = process.platform === 'darwin';
+
 function focusedHistory() {
   return BrowserWindow.getFocusedWindow()?.webContents.navigationHistory;
 }
@@ -13,16 +15,17 @@ function showAbout() {
   else dialog.showMessageBox(options);
 }
 
-// The menu bar stays hidden (Alt shows it); it is mostly here for its keyboard shortcuts.
+// On Windows the menu bar stays hidden (Alt shows it); it is mostly here for its keyboard shortcuts.
+// On macOS it is the usual menu bar, with the app menu (About, Hide, Quit) and the Window menu.
 function buildAppMenu() {
   return Menu.buildFromTemplate([
-    { label: 'File', submenu: [{ role: 'quit' }] },
+    IS_MAC ? { role: 'appMenu' } : { label: 'File', submenu: [{ role: 'quit' }] },
     { role: 'editMenu' },
     {
       label: 'View',
       submenu: [
-        { label: 'Back', accelerator: 'Alt+Left', click: () => { const history = focusedHistory(); if (history?.canGoBack()) history.goBack(); } },
-        { label: 'Forward', accelerator: 'Alt+Right', click: () => { const history = focusedHistory(); if (history?.canGoForward()) history.goForward(); } },
+        { label: 'Back', accelerator: IS_MAC ? 'Cmd+[' : 'Alt+Left', click: () => { const history = focusedHistory(); if (history?.canGoBack()) history.goBack(); } },
+        { label: 'Forward', accelerator: IS_MAC ? 'Cmd+]' : 'Alt+Right', click: () => { const history = focusedHistory(); if (history?.canGoForward()) history.goForward(); } },
         { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
@@ -35,7 +38,7 @@ function buildAppMenu() {
         { role: 'togglefullscreen' },
       ],
     },
-    { label: 'Help', submenu: [{ label: 'About XUNA AI', click: showAbout }] },
+    IS_MAC ? { role: 'windowMenu' } : { label: 'Help', submenu: [{ label: 'About XUNA AI', click: showAbout }] },
   ]);
 }
 

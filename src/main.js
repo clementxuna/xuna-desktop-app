@@ -11,38 +11,52 @@ const { chooseBounds, readState, writeState } = require('./window-state');
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
 const APP_URL = (!app.isPackaged && process.env.XUNA_APP_URL) || config.APP_URL;
 const policy = createPolicy({ appUrl: APP_URL, trustedDomain: config.TRUSTED_DOMAIN });
+const IS_MAC = process.platform === 'darwin';
+const IS_WINDOWS = process.platform === 'win32';
 
 // Development runs get their own profile, so they neither trip an installed copy's single-instance lock nor share its sign-in.
 if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} Dev`));
 
-app.userAgentFallback = chromeUserAgent(process.versions.chrome);
-app.setAppUserModelId(config.APP_ID);
+app.userAgentFallback = chromeUserAgent(process.versions.chrome, process.platform);
+if (IS_WINDOWS) app.setAppUserModelId(config.APP_ID);
 
 let mainWindow = null;
-let titleBar = null; // current title bar colour, shared by every window
+let titleBar = null; // current Windows title bar colour, shared by every window (macOS keeps its own title bar)
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', showMainWindow);
   app.on('web-contents-created', (_event, contents) => harden(contents));
+  // On macOS the app stays in the Dock after its last window closes, as Mac apps do.
+  app.on('window-all-closed', () => {
+    if (!IS_MAC) app.quit();
+  });
   // Electron applies a window's creation-time accentColor only on its first focus, so a window that
   // opens in the background would show Windows' own gray title bar. Applying it explicitly avoids that.
   app.on('browser-window-created', (_event, win) => {
     if (titleBar) win.setAccentColor(titleBar);
   });
   app.whenReady().then(() => {
-    titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
-    ipcMain.on('xuna:page-appearance', onPageAppearance);
+    if (IS_WINDOWS) {
+      titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
+      ipcMain.on('xuna:page-appearance', onPageAppearance);
+    }
     installPermissionHandlers();
     Menu.setApplicationMenu(buildAppMenu());
     mainWindow = createMainWindow();
+    app.on('activate', showMainWindow); // clicking the Dock icon on macOS
     startAutoUpdates();
   });
 }
 
 function backgroundColor() {
   return nativeTheme.shouldUseDarkColors ? config.BACKGROUND.dark : config.BACKGROUND.light;
+}
+
+// Colours the Windows title bar: black in dark mode, white in light mode. Windows only.
+function titleBarOptions() {
+  return titleBar ? { accentColor: titleBar } : {};
 }
 
 function openExternal(url) {
@@ -63,7 +77,7 @@ function harden(contents) {
   contents.setWindowOpenHandler((details) => {
     const verdict = policy.windowOpen({ ...details, openerUrl: contents.getURL() });
     if (verdict === 'in-app') {
-      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, backgroundColor: backgroundColor(), accentColor: titleBar } };
+      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, backgroundColor: backgroundColor(), ...titleBarOptions() } };
     }
     if (verdict === 'external') openExternal(details.url);
     return { action: 'deny' };
@@ -124,7 +138,7 @@ function createMainWindow() {
     minHeight: 500,
     title: 'XUNA AI',
     backgroundColor: backgroundColor(),
-    accentColor: titleBar, // colours the Windows title bar: black in dark mode, white in light mode
+    ...titleBarOptions(),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -138,7 +152,10 @@ function createMainWindow() {
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
-    app.quit(); // sign-in and connect pop-ups have no purpose without the main window
+    // Sign-in and connect pop-ups have no purpose without the main window. On macOS the app itself
+    // stays in the Dock, and clicking its icon opens a new main window.
+    if (!IS_MAC) app.quit();
+    else for (const other of BrowserWindow.getAllWindows()) other.close();
   });
 
   // Mouse back/forward buttons.

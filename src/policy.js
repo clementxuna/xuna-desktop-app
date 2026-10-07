@@ -83,10 +83,11 @@ function createPolicy({ appUrl, trustedDomain }) {
   return { isTrustedPage, windowOpen, navigation, permission };
 }
 
-// Desktop Chrome's reduced user-agent string. Google refuses sign-in from browsers that identify as Electron.
-function chromeUserAgent(chromeVersion) {
+// Desktop Chrome's reduced user-agent string for the platform. Google refuses sign-in from browsers that identify as Electron.
+function chromeUserAgent(chromeVersion, platform) {
   const major = String(chromeVersion).split('.')[0];
-  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
+  const system = platform === 'darwin' ? 'Macintosh; Intel Mac OS X 10_15_7' : 'Windows NT 10.0; Win64; x64';
+  return `Mozilla/5.0 (${system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
 }
 
 module.exports = { createPolicy, isSafeExternalUrl, chromeUserAgent };
