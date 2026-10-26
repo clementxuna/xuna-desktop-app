@@ -105,9 +105,9 @@ by the `mac-release` workflow in `codemagic.yaml`, on an Apple silicon Mac mini.
   | `APPLE_API_ISSUER` | The App Store Connect issuer ID |
   | `GH_TOKEN` | A fine-grained GitHub token for this repo only, with read and write access to Contents |
 
-- The certificate is valid for five years and the GitHub token has an expiry date; see
-  [docs/follow-ups.md](docs/follow-ups.md) for both dates. When either is renewed, replace
-  its variable in Codemagic.
+- The certificate and the GitHub token both expire; [docs/follow-ups.md](docs/follow-ups.md)
+  has the dates and how to renew each. When either is renewed, replace its variable in
+  Codemagic.
 - No push notification setup is needed: XUNA's notifications come from the open page, and
   the Mac app shows them as native macOS notifications.
 
