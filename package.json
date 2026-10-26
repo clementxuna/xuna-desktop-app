@@ -16,11 +16,11 @@
     "dist:mac": "electron-builder --mac --publish never"
   },
   "devDependencies": {
-    "electron": "^44.5.1",
+    "electron": "^44.9.3",
     "electron-builder": "^26.17.0"
   },
   "dependencies": {
-    "electron-updater": "^6.8.10"
+    "electron-updater": "^6.8.11"
   },
   "build": {
     "appId": "ai.xuna.desktop",
