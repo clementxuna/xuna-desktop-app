@@ -132,11 +132,11 @@ reason for it.
 - **One full-screen view in www.xuna.ai's style**: its type scale, brand blue and hero aurora
   video, with no navigation.
   - It picks the Mac or Windows version from the visitor's browser before the page is
-    drawn, and the note under the buttons links to the other one.
-  - On Windows, that note covers the unsigned-app warnings; on Mac, it says to drag the app
-    into Applications. Phones, tablets and other systems get a note pointing them to a
-    computer instead. `/download`, the page's original link, still goes to the Windows
-    installer.
+    drawn, and a second button offers the other one.
+  - On Windows, the note under the buttons covers the unsigned-app warnings; on Mac, it says
+    to drag the app into Applications. Phones, tablets and other systems get a note pointing
+    them to a computer instead. `/download`, the page's original link, still goes to the
+    Windows installer.
   - The fades sit above the video, as on the site, so text stays on dark wherever the aurora
     falls.
 

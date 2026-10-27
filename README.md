@@ -132,8 +132,8 @@ by the `mac-release` workflow in `codemagic.yaml`, on an Apple silicon Mac mini.
     commits that touch neither `site/` nor `vercel.json` skip the redeploy.
   - Keep the project in the Pro team, because Vercel's Hobby plan is for non-commercial use.
 - The page is a single full-screen view in www.xuna.ai's style: its type scale, brand blue
-  and hero aurora video, with no navigation. It shows the Mac or Windows version depending
-  on the visitor's computer and links to the other. Keep it in step with the site when the
+  and hero aurora video, with no navigation. It leads with the Mac or Windows version
+  depending on the visitor's computer and offers the other as a second button. Keep it in step with the site when the
   site changes.
 
 ## Values that must not change
