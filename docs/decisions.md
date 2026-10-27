@@ -102,9 +102,13 @@ reason for it.
   - Electron reports no clicks on push notifications, so clicking one opens XUNA but not the
     page it refers to.
   - Windows has no equivalent for apps installed this way.
-- **Icon:** the XUNA mark in the Windows icon's blue, on a dark tile with the download
-  page's blue glow, drawn on Apple's icon grid (an 824-pixel tile on a 1024-pixel canvas)
-  from the vector logomark.
+- **Icon, on Mac and Windows:** XUNA's regular wordmark in white, as on www.xuna.ai. It is
+  never the logomark and never light blue, which aren't XUNA's design. The wordmark sits at
+  68% of the tile's width, on a dark tile with the download page's brand-blue glow.
+  - On Mac the tile follows Apple's icon grid: an 824-pixel tile on a 1024-pixel canvas,
+    with 185-pixel corners.
+  - On Windows the tile fills the canvas apart from a small margin. A white logo on a
+    transparent background would vanish on light taskbars and folders.
 
 ## Releases
 
