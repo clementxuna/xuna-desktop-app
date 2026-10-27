@@ -58,7 +58,8 @@ reason for it.
   Windows 11.
 - **It follows XUNA's own theme setting, not just Windows'.** A sandboxed preload reports the
   page's `color-scheme`. The main process accepts the report only from XUNA pages and maps it
-  to one of the two colours. The preload exposes nothing to the page.
+  to one of the two colours. The only thing the preload gives the page is the push registration
+  (see "Mac").
 - **The colour is applied to every window as it is created,** because Electron otherwise waits
   for the window's first focus and shows Windows' gray until then.
 
@@ -86,8 +87,21 @@ reason for it.
   before uploading anything.
 - **Codemagic's GitHub token can only write to this repo**: it is a fine-grained token with
   Contents access to this repository and nothing else.
-- **No push notification service.** XUNA's notifications come from the open page (no web
-  push), and the signed app shows them as native macOS notifications under its bundle ID.
+- **Push notifications through Apple (APNs).** XUNA's web app shows its notifications only
+  inside the page, and only while it is open. Through APNs, XUNA's servers can reach a Mac
+  even when the app is closed, and macOS shows the notification itself.
+  - The App ID `ai.xuna.desktop` has Push Notifications enabled. A Developer ID provisioning
+    profile in `build/` allows the push entitlement. Only the app itself has that
+    entitlement, because macOS stops any helper process that claims it.
+  - The APNs key works only for this app and only in production, because Developer ID apps
+    always get production device tokens. The key is kept outside the repo.
+  - The app registers at start-up. XUNA pages read the result through
+    `window.xunaDesktop.getPushRegistration()`, the one function the preload provides. The
+    main process answers only pages on xuna.ai. The web app stores the token with the
+    signed-in account, and XUNA's servers send to it.
+  - Electron reports no clicks on push notifications, so clicking one opens XUNA but not the
+    page it refers to.
+  - Windows has no equivalent for apps installed this way.
 - **Icon:** the XUNA mark in the Windows icon's blue, on a dark tile with the download
   page's blue glow, drawn on Apple's icon grid (an 824-pixel tile on a 1024-pixel canvas)
   from the vector logomark.

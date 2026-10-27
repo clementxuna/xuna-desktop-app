@@ -22,11 +22,20 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
      `openssl pkcs12 -export -inkey developer-id.key -in developer-id-application.pem -certfile DeveloperIDG2CA.pem -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 -out developer-id.p12`
   4. In Codemagic, set `CSC_LINK` to the `.p12` in base64 and `CSC_KEY_PASSWORD` to its
      password.
+  5. The push provisioning profile lists the certificate it works with, so make a new one:
+     at developer.apple.com, open Profiles → + → Developer ID, choose App ID
+     `ai.xuna.desktop` and the new certificate. Save it as
+     `build/developer-id.provisionprofile` and release.
 - The App Store Connect API key (`APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`)
-  doesn't expire, but stops working if it is revoked.
+  doesn't expire, but stops working if it is revoked. It is "Codemagic notarization", with
+  Developer access only.
+- The APNs key that XUNA's servers use to send push notifications doesn't expire either.
 
 ## Worth doing
 
+- **Send push notifications from XUNA's servers.** The Mac app registers with Apple and gives
+  XUNA pages its device token, but nothing sends to it yet. See
+  [push-notifications.md](push-notifications.md) for the web app and server work.
 - **Windows code signing.** It removes the "Windows protected your PC" warning, and the
   cases where Smart App Control blocks the installer outright.
   - Microsoft's Azure code-signing service costs about $10 a month and needs identity

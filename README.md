@@ -16,8 +16,12 @@ build from the same code.
   - the app presents a standard Chrome user agent so Google sign-in works
 - On Windows, the window's title bar follows the app's theme: black in dark mode, white in
   light mode (Windows 11; Windows 10 keeps its standard title bar). `src/preload.js` reports
-  the theme the page shows; it exposes nothing to the page. On Mac, the title bar follows
-  macOS's light or dark mode.
+  the theme the page shows. On Mac, the title bar follows macOS's light or dark mode.
+- On Mac, XUNA's servers can send push notifications through Apple (APNs), and macOS shows
+  them even when the app is closed. The app registers with Apple at start-up and gives XUNA
+  pages one function, `window.xunaDesktop.getPushRegistration()`, to read where to send
+  them. [docs/push-notifications.md](docs/push-notifications.md) covers what XUNA's servers
+  need to do.
 - On Mac it behaves like a Mac app: closing the window keeps XUNA AI in the Dock, clicking
   the Dock icon opens it again, and it has the usual app and Window menus.
 - Installed copies update themselves from this repo's GitHub Releases: they check at
@@ -108,8 +112,11 @@ by the `mac-release` workflow in `codemagic.yaml`, on an Apple silicon Mac mini.
 - The certificate and the GitHub token both expire; [docs/follow-ups.md](docs/follow-ups.md)
   has the dates and how to renew each. When either is renewed, replace its variable in
   Codemagic.
-- No push notification setup is needed: XUNA's notifications come from the open page, and
-  the Mac app shows them as native macOS notifications.
+- `build/developer-id.provisionprofile` lets the app receive push notifications. It is not
+  secret. It lists the certificate, so make a new one whenever the certificate is renewed
+  (see [docs/follow-ups.md](docs/follow-ups.md)).
+- Before uploading, the workflow also opens the signed app, because macOS refuses to open an
+  app whose entitlements and provisioning profile don't match, and no signature check shows that.
 
 ## Download link
 

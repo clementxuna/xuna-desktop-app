@@ -70,7 +70,8 @@
       "artifactName": "XUNA-AI-mac.${ext}",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "provisioningProfile": "build/developer-id.provisionprofile",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "XUNA uses the microphone for voice agents and calls."
       },

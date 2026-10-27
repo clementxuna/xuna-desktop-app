@@ -72,6 +72,30 @@ workflows:
           case " $archs " in *" arm64 "*) ;; *) fail "The app has no Apple silicon code." ;; esac
           case " $archs " in *" x86_64 "*) ;; *) fail "The app has no Intel code." ;; esac
           spctl --assess --type execute --verbose=4 "$app" || true # informational: build machines may run with Gatekeeper off
+          # Push notifications: the app needs the APNs entitlement and the embedded profile that allows it. Helpers
+          # must not claim it, because the profile covers only the app itself and macOS would stop them.
+          test -f "$app/Contents/embedded.provisionprofile" || fail "The provisioning profile isn't embedded, so macOS would refuse to open the app."
+          codesign --display --entitlements - --xml "$app" 2>/dev/null | grep -q "com.apple.developer.aps-environment" || fail "The app is missing the push notification entitlement."
+          for helper in "$app"/Contents/Frameworks/*.app; do
+            if codesign --display --entitlements - --xml "$helper" 2>/dev/null | grep -q "aps-environment"; then fail "$(basename "$helper") claims the push entitlement."; fi
+          done
+
+      # macOS stops an app at launch when its entitlements and provisioning profile don't match, which no
+      # signature check above can see. Opening the app is the only proof.
+      - name: Check the app opens
+        script: |
+          set -eu
+          "dist/mac-universal/XUNA AI.app/Contents/MacOS/XUNA AI" > launch.log 2>&1 &
+          pid=$!
+          sleep 15
+          if ! kill -0 "$pid" 2>/dev/null; then
+            code=0; wait "$pid" || code=$?
+            cat launch.log
+            echo "The app closed within 15 seconds of opening (exit code $code). macOS may have refused its entitlements." >&2
+            exit 1
+          fi
+          kill "$pid"
+          echo "The app was still running after 15 seconds."
 
       # Waits until GitHub Actions has published the release, so the Windows job stays the only one that
       # creates releases and a version is never split across two of them.

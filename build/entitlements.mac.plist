@@ -10,5 +10,14 @@
   <!-- Voice agents use the microphone. The app never asks for the camera. -->
   <key>com.apple.security.device.audio-input</key>
   <true/>
+  <!-- Push notifications from XUNA's servers through Apple (APNs). macOS allows these only because the provisioning
+       profile embedded in the app (build/developer-id.provisionprofile) grants them to this app ID. Helper processes
+       use entitlements.mac.inherit.plist, without them. -->
+  <key>com.apple.developer.aps-environment</key>
+  <string>production</string>
+  <key>com.apple.application-identifier</key>
+  <string>57JSRUV65Y.ai.xuna.desktop</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>57JSRUV65Y</string>
 </dict>
 </plist>

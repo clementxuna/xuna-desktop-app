@@ -62,6 +62,22 @@ test('the Mac app may use the microphone but not the camera', () => {
   }
 });
 
+test('only the Mac app itself, not its helper processes, may receive push notifications', () => {
+  // macOS honours the APNs entitlement only when the embedded provisioning profile grants it to this app ID,
+  // and stops any helper that claims it.
+  const app = readRepoFile(build.mac.entitlements);
+  const helpers = readRepoFile(build.mac.entitlementsInherit);
+  const plistString = (plist, key) => plist.match(new RegExp(`<key>${key.replaceAll('.', '\\.')}</key>\\s*<string>([^<]+)</string>`))?.[1];
+  assert.equal(plistString(app, 'com.apple.developer.aps-environment'), 'production');
+  const appIdentifier = plistString(app, 'com.apple.application-identifier');
+  assert.equal(appIdentifier, `${plistString(app, 'com.apple.developer.team-identifier')}.${build.appId}`);
+  for (const key of ['aps-environment', 'application-identifier', 'team-identifier']) assert.doesNotMatch(helpers, new RegExp(key), key);
+  // The profile is a signed binary file, but the plist inside it is stored as plain text.
+  const profile = fs.readFileSync(path.join(__dirname, '..', build.mac.provisioningProfile), 'latin1');
+  assert.equal(plistString(profile, 'com.apple.application-identifier'), appIdentifier, 'the profile is for this app ID');
+  assert.equal(plistString(profile, 'com.apple.developer.aps-environment'), 'production');
+});
+
 test('Codemagic builds the Mac app and adds it to the release GitHub Actions creates', () => {
   // Only the Windows job creates releases, so a version is never split across two of them.
   const workflow = readRepoFile('codemagic.yaml');
@@ -74,6 +90,10 @@ test('Codemagic builds the Mac app and adds it to the release GitHub Actions cre
   for (const file of [dmg, zip, `${zip}.blockmap`, 'latest-mac.yml']) assert.ok(workflow.includes(`dist/${file}`), `uploads dist/${file}`);
   assert.ok(workflow.indexOf('Check the tag matches package.json') < workflow.indexOf('npm ci'), 'tag check runs before npm ci');
   assert.match(workflow, /xcrun stapler validate/); // fails the build if notarization was skipped
+  assert.match(workflow, /embedded\.provisionprofile/); // fails the build if the push profile is missing
+  // Only opening the app shows whether macOS accepts its entitlements, so that check runs before any upload.
+  const opens = workflow.indexOf('Check the app opens');
+  assert.ok(opens !== -1 && opens < workflow.indexOf('gh release upload'), 'the app is opened before uploading');
 });
 
 test('only the shell source is packaged into the app', () => {

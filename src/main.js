@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell } = require('electron');
 const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
 const { buildAppMenu, attachContextMenu } = require('./menus');
@@ -22,6 +22,7 @@ if (IS_WINDOWS) app.setAppUserModelId(config.APP_ID);
 
 let mainWindow = null;
 let titleBar = null; // current Windows title bar colour, shared by every window (macOS keeps its own title bar)
+let pushRegistration = Promise.resolve(null); // where XUNA's servers send this Mac's push notifications (macOS only)
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -46,8 +47,28 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(buildAppMenu());
     mainWindow = createMainWindow();
     app.on('activate', showMainWindow); // clicking the Dock icon on macOS
+    // Clicking a push notification brings the app to the front but opens no window, so open one if none is left.
+    app.on('did-become-active', () => {
+      if (BrowserWindow.getAllWindows().length === 0) showMainWindow();
+    });
+    ipcMain.handle('xuna:push-registration', (event) => (policy.isTrustedPage(event.senderFrame?.url) ? pushRegistration : null));
+    registerForPush();
     startAutoUpdates();
   });
+}
+
+// Asks Apple for this Mac's device token. XUNA's servers send notifications to it through APNs, and macOS shows
+// them even when the app is closed. Only signed copies can register: they carry the push entitlement and the
+// provisioning profile that allows it (see build/entitlements.mac.plist). Development runs and Windows skip this.
+function registerForPush() {
+  if (!IS_MAC || !app.isPackaged) return;
+  pushRegistration = pushNotifications
+    .registerForAPNSNotifications()
+    .then((token) => ({ platform: 'macos', token, topic: config.APP_ID, environment: 'production' }))
+    .catch((error) => {
+      console.error('[push]', error);
+      return null;
+    });
 }
 
 function backgroundColor() {
