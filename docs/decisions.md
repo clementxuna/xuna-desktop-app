@@ -104,7 +104,7 @@ reason for it.
   - Windows has no equivalent for apps installed this way.
 - **Icon, on Mac and Windows:** XUNA's regular wordmark in white, as on www.xuna.ai. It is
   never the logomark and never light blue, which aren't XUNA's design. The wordmark sits at
-  68% of the tile's width, on a dark tile with the download page's brand-blue glow.
+  68% of the tile's width, centred on a plain black tile: no gradient, glow or edge line.
   - On Mac the tile follows Apple's icon grid: an 824-pixel tile on a 1024-pixel canvas,
     with 185-pixel corners.
   - On Windows the tile fills the canvas apart from a small margin. A white logo on a
