@@ -14,9 +14,10 @@ build from the same code.
     any page may copy to the clipboard or go fullscreen, as in Chrome; everything else
     is refused, including for other sites' frames embedded in a XUNA page
   - the app presents a standard Chrome user agent so Google sign-in works
-- On Windows, the window's title bar follows the app's theme: black in dark mode, white in
-  light mode (Windows 11; Windows 10 keeps its standard title bar). `src/preload.js` reports
-  the theme the page shows. On Mac, the title bar follows macOS's light or dark mode.
+- The window's title bar follows the app's theme: black in dark mode, white in light mode.
+  `src/preload.js` reports the theme the page shows. On Windows it is Windows' own title bar,
+  recoloured (Windows 11; Windows 10 keeps its standard title bar). On Mac the app hides
+  macOS's title bar and keeps its three buttons over a strip of that colour, with XUNA below it.
 - On Mac, XUNA's servers can send push notifications through Apple (APNs), and macOS shows
   them even when the app is closed. The app registers with Apple at start-up and gives XUNA
   pages one function, `window.xunaDesktop.getPushRegistration()`, to read where to send

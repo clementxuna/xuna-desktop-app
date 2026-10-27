@@ -49,14 +49,26 @@ reason for it.
 
 ## Title bar
 
-- **On Mac, the standard title bar.** It follows macOS's light or dark mode. Matching XUNA's
-  own theme setting would mean overriding the system theme, which the page also reads, so a
-  page set to follow the system would get stuck on whichever colour it last showed.
+- **On Mac, a strip in XUNA's black or white behind macOS's three buttons.** macOS's own title
+  bar is grey in dark mode and follows the system's setting rather than XUNA's, and forcing
+  the system theme instead would trap a page set to follow the system on its last colour.
+  - The window hides the title bar (`titleBarStyle: 'hidden'`), which keeps the buttons. The
+    28-pixel strip they sit on is the window's background colour, which the main process sets
+    from the theme the page reports. 28 pixels is macOS's own title bar height, so the buttons
+    sit where they always do.
+  - XUNA's page is a `WebContentsView` below the strip, because a page that filled the window
+    would sit under the buttons. The window's own page is `src/title-strip.html`, which only
+    makes the strip drag the window. In full screen the strip goes and the page fills the
+    screen.
+  - Closing the window first closes XUNA's page, so its "Leave this page?" check still runs,
+    and a quit that the page held up finishes once it has closed. Back, Forward, Reload and
+    Developer Tools act on XUNA's page, not the strip.
+  - Sign-in and connect pop-ups keep macOS's standard title bar.
 - **Windows' own title bar, recoloured:** black (the app's `#010101`) in dark mode, white in
   light mode. It uses Electron's `accentColor`, which sets Windows' caption colour, rather than
   a custom-drawn bar, so snapping, dragging and the window menu stay native. This needs
   Windows 11.
-- **It follows XUNA's own theme setting, not just Windows'.** A sandboxed preload reports the
+- **It follows XUNA's own theme setting, not just the system's.** A sandboxed preload reports the
   page's `color-scheme`. The main process accepts the report only from XUNA pages and maps it
   to one of the two colours. The only thing the preload gives the page is the push registration
   (see "Mac").

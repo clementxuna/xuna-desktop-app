@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+  <title>XUNA AI</title>
+  <!-- The strip above the XUNA page on Mac, behind the window's three buttons. It draws nothing: its
+       colour is the window's background, which src/main.js sets to XUNA's black or white. It is here
+       so the strip drags the window, as macOS's own title bar would. Its height is
+       MAC_TITLE_STRIP_HEIGHT in src/title-bar.js. -->
+  <style>
+    html, body { margin: 0; background: transparent; }
+    .strip { position: fixed; top: 0; left: 0; right: 0; height: 28px; app-region: drag; -webkit-app-region: drag; }
+  </style>
+</head>
+<body>
+  <div class="strip"></div>
+</body>
+</html>

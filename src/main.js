@@ -1,11 +1,11 @@
 'use strict';
 
 const path = require('node:path');
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell } = require('electron');
 const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
 const { buildAppMenu, attachContextMenu } = require('./menus');
-const { titleBarColor } = require('./title-bar');
+const { titleBarColor, macAppViewBounds } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
 
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
@@ -21,8 +21,11 @@ app.userAgentFallback = chromeUserAgent(process.versions.chrome, process.platfor
 if (IS_WINDOWS) app.setAppUserModelId(config.APP_ID);
 
 let mainWindow = null;
-let titleBar = null; // current Windows title bar colour, shared by every window (macOS keeps its own title bar)
+let titleBar = null; // XUNA's black or white for the title bars: Windows' own, and the strip on Mac
 let pushRegistration = Promise.resolve(null); // where XUNA's servers send this Mac's push notifications (macOS only)
+// On Mac the XUNA page is a view below the title strip (see addMacAppView); elsewhere it is the window's own page.
+const appPages = new WeakMap(); // Mac main window → its XUNA view's web contents
+let quitting = false; // a quit the XUNA page is holding up, to finish once the page has closed (macOS)
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -36,15 +39,16 @@ if (!app.requestSingleInstanceLock()) {
   // Electron applies a window's creation-time accentColor only on its first focus, so a window that
   // opens in the background would show Windows' own gray title bar. Applying it explicitly avoids that.
   app.on('browser-window-created', (_event, win) => {
-    if (titleBar) win.setAccentColor(titleBar);
+    if (IS_WINDOWS && titleBar) win.setAccentColor(titleBar);
+  });
+  app.on('before-quit', () => {
+    quitting = true;
   });
   app.whenReady().then(() => {
-    if (IS_WINDOWS) {
-      titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
-      ipcMain.on('xuna:page-appearance', onPageAppearance);
-    }
+    titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
+    ipcMain.on('xuna:page-appearance', onPageAppearance);
     installPermissionHandlers();
-    Menu.setApplicationMenu(buildAppMenu());
+    Menu.setApplicationMenu(buildAppMenu(appContents));
     mainWindow = createMainWindow();
     app.on('activate', showMainWindow); // clicking the Dock icon on macOS
     // Clicking a push notification brings the app to the front but opens no window, so open one if none is left.
@@ -75,9 +79,21 @@ function backgroundColor() {
   return nativeTheme.shouldUseDarkColors ? config.BACKGROUND.dark : config.BACKGROUND.light;
 }
 
-// Colours the Windows title bar: black in dark mode, white in light mode. Windows only.
+// Colours the Windows title bar: black in dark mode, white in light mode. Windows only; on Mac the strip
+// above the page takes the colour instead (see addMacAppView).
 function titleBarOptions() {
-  return titleBar ? { accentColor: titleBar } : {};
+  return IS_WINDOWS && titleBar ? { accentColor: titleBar } : {};
+}
+
+// The page showing XUNA in a window: the view below the strip on Mac, otherwise the window's own page.
+function appContents(win) {
+  const page = appPages.get(win);
+  return page && !page.isDestroyed() ? page : win.webContents;
+}
+
+// The window a page is shown in, the XUNA view of a Mac window included.
+function windowOf(contents) {
+  return BrowserWindow.getAllWindows().find((win) => win.webContents === contents || appContents(win) === contents) ?? null;
 }
 
 function openExternal(url) {
@@ -86,11 +102,14 @@ function openExternal(url) {
 
 // src/preload.js reports the theme the XUNA page is showing; the title bars follow it.
 function onPageAppearance(event, appearance) {
-  if (!BrowserWindow.fromWebContents(event.sender) || !policy.isTrustedPage(event.senderFrame?.url)) return;
+  if (!windowOf(event.sender) || !policy.isTrustedPage(event.senderFrame?.url)) return;
   const color = titleBarColor(appearance);
   if (color === titleBar) return;
   titleBar = color;
-  for (const win of BrowserWindow.getAllWindows()) win.setAccentColor(color);
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (IS_WINDOWS) win.setAccentColor(color);
+    else if (appPages.has(win)) win.setBackgroundColor(color); // the Mac strip shows the window's background
+  }
 }
 
 // Applied to every page the app shows, pop-ups included.
@@ -121,9 +140,10 @@ function harden(contents) {
       message: 'Leave this page?',
       detail: 'Changes you made may not be saved.',
     };
-    const owner = BrowserWindow.fromWebContents(contents);
+    const owner = windowOf(contents);
     const choice = owner ? dialog.showMessageBoxSync(owner, options) : dialog.showMessageBoxSync(options);
     if (choice === 0) event.preventDefault();
+    else quitting = false; // staying abandons any quit in progress
   });
 
   if (contents.getType() === 'window') attachContextMenu(contents, openExternal);
@@ -153,22 +173,26 @@ function createMainWindow() {
   const workAreas = screen.getAllDisplays().map((display) => display.workArea);
   const { bounds, maximized } = chooseBounds(readState(stateFile), workAreas, { width: 1280, height: 820 });
 
+  const appPreferences = {
+    contextIsolation: true,
+    sandbox: true,
+    nodeIntegration: false,
+    spellcheck: true,
+    preload: path.join(__dirname, 'preload.js'),
+  };
   const win = new BrowserWindow({
     ...bounds,
     minWidth: 400,
     minHeight: 500,
     title: 'XUNA AI',
-    backgroundColor: backgroundColor(),
+    backgroundColor: (IS_MAC && titleBar) || backgroundColor(),
     ...titleBarOptions(),
+    ...(IS_MAC ? { titleBarStyle: 'hidden' } : {}),
     autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      spellcheck: true,
-      preload: path.join(__dirname, 'preload.js'),
-    },
+    // On Mac the window's own page is the title strip, which needs nothing; XUNA gets a view below it.
+    webPreferences: IS_MAC ? { contextIsolation: true, sandbox: true, nodeIntegration: false } : appPreferences,
   });
+  const contents = IS_MAC ? addMacAppView(win, appPreferences) : win.webContents;
   if (maximized) win.maximize();
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
   win.on('closed', () => {
@@ -181,27 +205,68 @@ function createMainWindow() {
 
   // Mouse back/forward buttons.
   win.on('app-command', (_event, command) => {
-    const history = win.webContents.navigationHistory;
+    const history = contents.navigationHistory;
     if (command === 'browser-backward' && history.canGoBack()) history.goBack();
     if (command === 'browser-forward' && history.canGoForward()) history.goForward();
   });
 
-  win.webContents.on('did-fail-load', (_event, errorCode, _description, url, isMainFrame) => {
+  contents.on('did-fail-load', (_event, errorCode, _description, url, isMainFrame) => {
     // -3 is an aborted load (a redirect or a superseded navigation), not a failure.
     if (!isMainFrame || errorCode === -3 || url.startsWith('file:')) return;
     const retryUrl = policy.isTrustedPage(url) ? url : APP_URL;
-    win.loadFile(path.join(__dirname, 'offline.html'), { query: { url: retryUrl } }).catch(() => {});
+    contents.loadFile(path.join(__dirname, 'offline.html'), { query: { url: retryUrl } }).catch(() => {});
   });
 
   let lastCrash = 0;
-  win.webContents.on('render-process-gone', (_event, details) => {
+  contents.on('render-process-gone', (_event, details) => {
     if (details.reason === 'clean-exit' || Date.now() - lastCrash < 10_000) return; // don't loop on a page that keeps crashing
     lastCrash = Date.now();
-    win.webContents.reload();
+    contents.reload();
   });
 
-  win.loadURL(APP_URL).catch(() => {}); // failures are handled by did-fail-load
+  contents.loadURL(APP_URL).catch(() => {}); // failures are handled by did-fail-load
   return win;
+}
+
+// macOS draws its title bar in its own grey, whatever theme XUNA shows. So on Mac the window hides it,
+// keeping the three buttons, over a strip in XUNA's black or white: the window's background, which
+// onPageAppearance keeps in step with the page. src/title-strip.html, the window's own page, makes the
+// strip drag the window. XUNA's page is a view below the strip. Returns that view's web contents.
+function addMacAppView(win, webPreferences) {
+  const view = new WebContentsView({ webPreferences });
+  const page = view.webContents; // held here: once the page is destroyed, view.webContents is undefined
+  view.setBackgroundColor(backgroundColor());
+  win.contentView.addChildView(view);
+  appPages.set(win, page);
+
+  const layout = () => {
+    const [width, height] = win.getContentSize();
+    view.setBounds(macAppViewBounds({ width, height, fullScreen: win.isFullScreen() }));
+  };
+  layout();
+  for (const event of ['resize', 'enter-full-screen', 'leave-full-screen']) win.on(event, layout);
+  win.on('focus', () => {
+    if (!page.isDestroyed()) page.focus(); // typing goes to XUNA, not the strip
+  });
+
+  // The window takes the XUNA page's title, as it did when the page was its own (the Window menu shows it).
+  win.on('page-title-updated', (event) => event.preventDefault());
+  page.on('page-title-updated', (_event, title) => win.setTitle(title));
+
+  // Closing the window asks the XUNA page first, which may have unsaved changes (see will-prevent-unload);
+  // the window closes once the page has gone. A quit the page held up carries on from there.
+  win.on('close', (event) => {
+    if (page.isDestroyed()) return;
+    event.preventDefault();
+    page.close({ waitForBeforeUnload: true });
+  });
+  page.once('destroyed', () => {
+    if (quitting) app.quit();
+    else if (!win.isDestroyed()) win.close();
+  });
+
+  win.loadFile(path.join(__dirname, 'title-strip.html')).catch(() => {});
+  return page;
 }
 
 function showMainWindow() {

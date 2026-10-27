@@ -4,10 +4,6 @@ const { app, BrowserWindow, Menu, clipboard, dialog } = require('electron');
 
 const IS_MAC = process.platform === 'darwin';
 
-function focusedHistory() {
-  return BrowserWindow.getFocusedWindow()?.webContents.navigationHistory;
-}
-
 function showAbout() {
   const options = { type: 'info', title: 'About XUNA AI', message: 'XUNA AI', detail: `Version ${app.getVersion()}` };
   const owner = BrowserWindow.getFocusedWindow();
@@ -17,19 +13,25 @@ function showAbout() {
 
 // On Windows the menu bar stays hidden (Alt shows it); it is mostly here for its keyboard shortcuts.
 // On macOS it is the usual menu bar, with the app menu (About, Hide, Quit) and the Window menu.
-function buildAppMenu() {
+// appContents(win) is the page showing XUNA in a window, which on Mac is not the window's own page (see
+// src/main.js), so the page commands go to it rather than to Electron's roles for them.
+function buildAppMenu(appContents) {
+  const focusedPage = () => {
+    const win = BrowserWindow.getFocusedWindow();
+    return win ? appContents(win) : null;
+  };
   return Menu.buildFromTemplate([
     IS_MAC ? { role: 'appMenu' } : { label: 'File', submenu: [{ role: 'quit' }] },
     { role: 'editMenu' },
     {
       label: 'View',
       submenu: [
-        { label: 'Back', accelerator: IS_MAC ? 'Cmd+[' : 'Alt+Left', click: () => { const history = focusedHistory(); if (history?.canGoBack()) history.goBack(); } },
-        { label: 'Forward', accelerator: IS_MAC ? 'Cmd+]' : 'Alt+Right', click: () => { const history = focusedHistory(); if (history?.canGoForward()) history.goForward(); } },
+        { label: 'Back', accelerator: IS_MAC ? 'Cmd+[' : 'Alt+Left', click: () => { const history = focusedPage()?.navigationHistory; if (history?.canGoBack()) history.goBack(); } },
+        { label: 'Forward', accelerator: IS_MAC ? 'Cmd+]' : 'Alt+Right', click: () => { const history = focusedPage()?.navigationHistory; if (history?.canGoForward()) history.goForward(); } },
         { type: 'separator' },
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
+        { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => focusedPage()?.reload() },
+        { label: 'Force Reload', accelerator: 'Shift+CmdOrCtrl+R', click: () => focusedPage()?.reloadIgnoringCache() },
+        { label: 'Toggle Developer Tools', accelerator: IS_MAC ? 'Alt+Command+I' : 'Ctrl+Shift+I', click: () => focusedPage()?.toggleDevTools() },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn', accelerator: 'CommandOrControl+=' },
