@@ -56,6 +56,9 @@ reason for it.
     28-pixel strip they sit on is the window's background colour, which the main process sets
     from the theme the page reports. 28 pixels is macOS's own title bar height, so the buttons
     sit where they always do.
+  - The strip is transparent and declares no colour scheme, so the window's colour is all that
+    shows. Chromium paints a page in a dark colour scheme with its own grey, #121212. In 1.2.0
+    the strip declared one, and the bar showed grey above XUNA's black header.
   - XUNA's page is a `WebContentsView` below the strip, because a page that filled the window
     would sit under the buttons. The window's own page is `src/title-strip.html`, which makes
     the strip drag the window and draws the workspace tab buttons (see "Workspace tabs"). In
@@ -64,7 +67,10 @@ reason for it.
     runs, and a quit that a page held up finishes once they have closed. Back, Forward, Reload
     and Developer Tools act on the XUNA page shown, not the strip.
   - Sign-in and connect pop-ups keep macOS's standard title bar.
-- **Windows' own title bar, recoloured:** black (the app's `#010101`) in dark mode, white in
+- **The colours are exactly XUNA's header's:** `#030303` in dark mode (the page colour, which
+  the header shares there) and white in light mode, so the title bar and the header read as one
+  band. They live in `src/config.js` and have to follow the web app if its header changes colour.
+- **Windows' own title bar, recoloured:** black in dark mode, white in
   light mode. It uses Electron's `accentColor`, which sets Windows' caption colour, rather than
   a custom-drawn bar, so snapping, dragging and the window menu stay native. This needs
   Windows 11.

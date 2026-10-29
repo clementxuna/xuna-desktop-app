@@ -7,8 +7,9 @@ const path = require('node:path');
 const { MAC_TITLE_STRIP_HEIGHT, titleBarColor, macAppViewBounds } = require('../src/title-bar');
 const { BACKGROUND } = require('../src/config');
 
-test("the title bar uses the app's own black and white", () => {
-  assert.equal(BACKGROUND.dark, '#010101');
+test("the title bar uses the black and white of the app's header", () => {
+  // The web app's dark --sidebar (its header) is the page's rgb(3 3 3); its light one is white.
+  assert.equal(BACKGROUND.dark, '#030303');
   assert.equal(BACKGROUND.light, '#ffffff');
 });
 
@@ -66,6 +67,14 @@ test("the strip's buttons take clicks instead of dragging the window", () => {
   const buttons = cssRule(stripHtml(), '.tab, .add');
   assert.match(buttons, /(^|[\s;])app-region:\s*no-drag/);
   assert.match(buttons, /-webkit-app-region:\s*no-drag/);
+});
+
+test("the strip lets the window's colour through, so it matches XUNA's header exactly", () => {
+  // A colour scheme on the strip makes Chromium paint its own grey (#121212) over the window's black.
+  const style = stripHtml().match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+  assert.doesNotMatch(style, /color-scheme\s*:/);
+  assert.match(cssRule(stripHtml(), 'html, body'), /background:\s*transparent/);
+  assert.doesNotMatch(stripHtml(), /<meta name="color-scheme"/);
 });
 
 test('the strip runs only its own script file', () => {

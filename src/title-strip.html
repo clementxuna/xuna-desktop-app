@@ -8,7 +8,11 @@
        window's background, which src/main.js sets to XUNA's black or white, and it drags the window,
        as macOS's own title bar would. Its right end holds the workspace tab buttons, drawn by
        src/title-strip.js; they take clicks instead. Its height is MAC_TITLE_STRIP_HEIGHT in
-       src/title-bar.js. -->
+       src/title-bar.js.
+
+       The strip declares no colour scheme. Chromium paints a page whose root is in a dark colour
+       scheme with its own grey, #121212, instead of letting the window's colour show through, and
+       the strip then stands out as a grey bar above XUNA's black header. -->
   <style>
     :root {
       --text: #0a0a0a;
@@ -16,7 +20,6 @@
       --hover: rgb(10 10 10 / 6%);
       --selected: rgb(10 10 10 / 9%);
       --ring: rgb(10 10 10 / 35%);
-      color-scheme: light;
     }
     :root[data-theme="dark"] {
       --text: #fafafa;
@@ -24,7 +27,6 @@
       --hover: rgb(250 250 250 / 7%);
       --selected: rgb(250 250 250 / 13%);
       --ring: rgb(250 250 250 / 40%);
-      color-scheme: dark;
     }
     html, body { margin: 0; background: transparent; }
     .strip { position: fixed; top: 0; left: 0; right: 0; height: 28px; app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 6px 0 84px; box-sizing: border-box; font: 500 12px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: var(--text); user-select: none; }
