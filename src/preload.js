@@ -49,9 +49,10 @@ function watchHeader() {
   let header = null;
   let row = null; // the main process's word: { inset, inactive } in one row, null otherwise
   let covered = false;
+  let loaded = false; // XUNA draws its header after the page starts, so until it has loaded no header isn't news
   let last = '';
   const report = () => {
-    const found = findHeader();
+    const found = findHeader(row?.inset ?? 0);
     if (found !== header) {
       header?.removeAttribute('data-xuna-desktop-bar');
       header = found;
@@ -60,6 +61,7 @@ function watchHeader() {
     const state = header ? describeHeader(header) : null;
     covered = Boolean(state?.cover);
     applyRow(row, covered); // each time, in case XUNA's own code took it away
+    if (!state && !loaded && !last) return;
     const serialized = JSON.stringify(state);
     if (serialized === last) return;
     last = serialized;
@@ -70,6 +72,10 @@ function watchHeader() {
     new MutationObserver(soon).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
     report();
   });
+  window.addEventListener('load', () => {
+    loaded = true;
+    soon();
+  });
   window.addEventListener('resize', soon);
   document.addEventListener('load', soon, true); // a workspace's logo arriving changes the room the header needs
   ipcRenderer.on('xuna:title-bar-row', (_event, next) => {
@@ -79,14 +85,16 @@ function watchHeader() {
   });
 }
 
-// XUNA's header: the one holding its home link, along the top of the page and reaching its right edge
-// (in one row it starts where the strip ends). Any other is not taken for the title bar.
-function findHeader() {
+// XUNA's header: the one holding its home link, along the top of the page and across it, from its left
+// edge, or in one row from where the strip ends (inset), to its right edge. Any other is not taken for
+// the title bar.
+function findHeader(inset) {
   const candidate = document.querySelector('a[aria-label="Go to home"]')?.closest('header');
   if (!candidate) return null;
   const box = candidate.getBoundingClientRect();
   const along = Math.abs(box.top) <= 1 && box.height >= 40 && box.height <= 80;
-  const across = box.right >= window.innerWidth - 1 && box.width >= window.innerWidth / 2;
+  const starts = Math.abs(box.left) <= 1 || Math.abs(box.left - inset) <= 1;
+  const across = starts && box.right >= window.innerWidth - 1;
   return along && across ? candidate : null;
 }
 
@@ -114,11 +122,13 @@ function contentWidth(part) {
 }
 
 // Whatever covers the header from outside it, as the blurred backdrop behind a XUNA dialog does: how its
-// layer looks, so the strip can look the same, or null when nothing does.
+// layer looks, so the strip can look the same, or null when nothing does. While a XUNA menu is open the
+// page's body takes no clicks, so <html> or <body> is found there; neither covers anything.
 function coverOf(header, box) {
   const y = box.top + box.height / 2;
   const hits = [0.25, 0.5, 0.75].map((share) => document.elementFromPoint(box.left + box.width * share, y));
-  if (!hits.every((hit) => hit && !header.contains(hit))) return null;
+  const covering = (hit) => hit && hit !== document.documentElement && hit !== document.body && !header.contains(hit);
+  if (!hits.every(covering)) return null;
   let layer = hits[1];
   while (layer && layer !== document.body && getComputedStyle(layer).position !== 'fixed') layer = layer.parentElement;
   if (!layer || layer === document.body) return { filter: null, tint: null };

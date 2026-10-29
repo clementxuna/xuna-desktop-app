@@ -380,12 +380,15 @@ function xunaPage({ top = 0, width = 1280 } = {}) {
       box('BUTTON', { left: 1224, top: 12, width: 32, height: 32 }), // the avatar
     ],
   });
-  const header = box('HEADER', { left: 0, top, width, height: 56 }, {
+  const headerBox = { left: 0, top, width, height: 56 };
+  const header = box('HEADER', headerBox, {
     children: [left, right],
     computed: { paddingLeft: '24px', paddingRight: '24px', columnGap: '8px', backgroundColor: 'rgb(255, 255, 255)', borderBottomWidth: '1px', borderBottomColor: 'rgb(233, 234, 235)', position: 'relative' },
   });
   const body = box('BODY', { left: 0, top: 0, width: 1280, height: 820 }, { children: [header] });
-  const page = { logo, header, body, innerWidth: 1280, covering: null, at: () => page.covering ?? right };
+  // shift(inset): the header moved over to make room for the strip, as src/one-row.css moves it.
+  const shift = (inset) => Object.assign(headerBox, { left: inset, width: width - inset });
+  const page = { logo, header, body, innerWidth: 1280, covering: null, at: () => page.covering ?? right, shift };
   return page;
 }
 const headerReports = (run) => run.sent.filter(([channel]) => channel === 'xuna:title-bar-header').map((message) => message[1]);
@@ -404,13 +407,45 @@ test("a tab's page finds XUNA's header and says how tall it is, the room its con
   assert.equal(headerReports(run).length, 1); // nothing changed, so nothing more is said
 });
 
-test("a page without XUNA's header, or with one anywhere but along the top, has no title bar to offer", () => {
+test("a page without XUNA's header, or with one anywhere but along the top, has no title bar to offer, once it has loaded", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   for (const page of [null, xunaPage({ top: 40 }), xunaPage({ width: 600 })]) {
     const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
     run.dispatch('DOMContentLoaded');
+    run.dispatch('load');
+    t.mock.timers.tick(250);
     assert.deepEqual(headerReports(run), [null]);
     run.restore();
   }
+});
+
+test("a page says it has no XUNA header only once it has loaded, since XUNA draws its header after the page starts", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const { logo } = page;
+  page.logo = null; // not drawn yet
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  assert.deepEqual(headerReports(run), []);
+  page.logo = logo; // XUNA draws its header
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.deepEqual(headerReports(run).map((report) => report?.height), [56]);
+});
+
+test("in one row the header still counts as XUNA's own when the room made for the strip is over half the page", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:title-bar-row', { inset: 800, inactive: false });
+  page.shift(800);
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.notEqual(headerReports(run).at(-1), null);
+  assert.ok(page.header.attributes.has('data-xuna-desktop-bar'));
 });
 
 test("when a XUNA dialog's backdrop covers the header, the page says how it looks, and the header stops dragging the window", (t) => {
@@ -429,6 +464,22 @@ test("when a XUNA dialog's backdrop covers the header, the page says how it look
   t.mock.timers.tick(250);
   assert.equal(headerReports(run).at(-1).cover, null);
   assert.ok(!run.root.attributes.has('data-xuna-desktop-covered'));
+});
+
+test("XUNA's own menus don't count as covering the header, though while one is open the page takes no clicks", (t) => {
+  // Radix sets pointer-events: none on <body> while a menu is open, so the header's mid-line finds <html>.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  for (const found of [run.root, page.body]) {
+    page.covering = found;
+    run.mutate();
+    t.mock.timers.tick(250);
+    assert.equal(headerReports(run).at(-1).cover, null);
+    assert.ok(!run.root.attributes.has('data-xuna-desktop-covered'));
+  }
 });
 
 test('the room the main process makes for the strip is applied to the page, kept there, and taken away again', (t) => {
