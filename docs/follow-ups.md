@@ -94,7 +94,9 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
     strip and back; ⌘+ and ⌘− keeping the bar in line; full screen;
   - a XUNA dialog blurring the bar's left end with the page, and the bar fading while the window
     is in the background;
-  - Back and Forward, dragging a tab to a new place, and a tab's right-click menu.
+  - Back and Forward; clicking a tab to show it, double-clicking it to rename it (and Rename Tab…
+    from its right-click menu leaving the keyboard in the name field), dragging it to a new place,
+    and its right-click menu.
   - To see the drag areas Electron hit-tests, run `ELECTRON_DEBUG_DRAGGABLE_REGIONS=1 npm start`
     (development runs only). In a Windows run it hung the main process as the + panel opened
     (Electron 44.9.3), so open the panel without it.
@@ -132,10 +134,19 @@ None of these is visible to users today.
   - It depends on XUNA's header as the page lays it out today: a `<header>` along the top
     holding its home link (`aria-label="Go to home"`). If XUNA changes that, the window falls
     back to the strip until the desktop app learns the new header.
-  - An overlay that XUNA puts over its header from earlier in the page, outside its layers and
-    toasts, and that covers only part of the header, would drag the window where it lies over the
-    header's empty space. None does today.
+  - An overlay that XUNA draws inside its app rather than in a layer at the end of the page, as its
+    dialogs, menus and drawers are, that isn't a toast and covers only part of the header would drag
+    the window where it lies over the header's empty space. None does today.
   - Under a dialog's backdrop a faint seam can show where the bar's left end meets XUNA's header.
+  - For a frame or two after the bar changes from the strip to one row, the strip's old drag area
+    can still drag the window from XUNA's header controls under it, until the strip redraws.
+  - With one tab, + sits 4 pixels nearer XUNA's logo than designed: the empty tab list still takes
+    a gap.
+  - The strip's page doesn't check which page sent a request, and a link dropped on the bar could
+    load in its view, which would then have the strip's link to the main process.
+  - The header watcher looks at the page after any change of an attribute, at most five times a
+    second, which could be narrowed to the attributes that matter.
+  - If the strip's page crashes it isn't reloaded, and the bar is gone until the window reopens.
 - **Workspace tabs (Mac):**
   - A tab isn't named after its workspace automatically, because XUNA's page title is always
     "XUNA AI". Tabs are named "Workspace N" until renamed. The web app could set

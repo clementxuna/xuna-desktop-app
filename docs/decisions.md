@@ -90,15 +90,28 @@ reason for it.
     panel opens below the bar for the same reason.
   - The tabs come before XUNA's logo, not after it: the logo belongs to the tab's page (a
     white-labelled workspace shows its own), the tabs to the window.
-  - Where one row can't work, the strip comes back: on pages without XUNA's header (or if XUNA
-    changes it past recognising), in full screen, and when even the narrowest tabs wouldn't leave
-    XUNA's header its room and 64 pixels to drag the window by. The strip measures its left end
-    for this the same way in either mode, so the choice never changes what it was made on.
-  - It follows the page's zoom: the bar is as tall as the zoomed header, and the room made in the
-    header is in the page's own pixels. The strip's own controls stay their size, as a browser's
-    do when a page is zoomed.
+  - Where one row can't work, the strip comes back:
+    - on pages without XUNA's header, or if XUNA changes it past recognising;
+    - on pages outside XUNA's app, such as the offline page or a payment provider's, which say
+      nothing about a header, so a tab that goes to one forgets the one it had;
+    - on a page narrower than 1024 CSS pixels, where XUNA shows its mobile header and opens a menu
+      over the whole page, whose top left would be under the strip;
+    - in full screen;
+    - and when even the narrowest tabs wouldn't leave XUNA's header its room and 64 pixels to drag
+      the window by.
+  - The strip measures its left end the same way in either mode, so the choice never changes what
+    it was made on. The header still counts as XUNA's own however far it has been moved over, so
+    long rows of tabs don't send it back and forth.
+  - A page says it has no header only once it has loaded, as XUNA draws its header after the page
+    starts, so reloading a page keeps one row.
+  - It follows the page's zoom, which the main process knows at once; the page's own word on its
+    width lags while the window is resized. The bar is as tall as the zoomed header, and the room
+    made in the header is in the page's own pixels. The strip's own controls stay their size, as a
+    browser's do when a page is zoomed.
   - While a XUNA dialog's blurred backdrop covers the page, the bar's left end takes on the same
-    look, from the backdrop's blur and tint as the page reports them, and takes no clicks.
+    look, from the backdrop's blur and tint as the page reports them, and takes no clicks. XUNA's
+    menus don't count as covering: while one is open the page takes no clicks at all, which is not
+    the same.
 - **Back and Forward in the bar,** after the three buttons, as Slack, Notion and Arc have them:
   the app has no browser buttons, and ⌘[ and ⌘] had nothing to click. They act on the tab in
   front and are dimmed while there is nowhere to go.
