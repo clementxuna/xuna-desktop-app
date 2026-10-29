@@ -76,7 +76,10 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
     tabs open its own workspaces (each tab offers its last workspace only as a hint), and what
     the sign-in page shows meanwhile (it can show the last workspace's branding);
   - ⌘R while XUNA is still starting, a XUNA pop-up in a different theme from its tab, and a day
-    of normal use, all without the tabs turning themselves off.
+    of normal use, all without the tabs turning themselves off;
+  - the + panel beside XUNA's own picker, in both themes: the type, colours, logos and shadow,
+    searching, the arrow keys, Escape, clicking away (including onto another tab), ⌘T, a long
+    list that scrolls, and full screen.
 - **Ask the web team to keep the current workspace per tab** (`docs/multi-tab-workspaces.md`).
   Browser users have the same problem today, and the desktop's hook could then go.
 

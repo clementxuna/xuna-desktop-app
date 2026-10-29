@@ -29,6 +29,15 @@ it, and the request interceptor (`src/lib/http.ts`) reads it before every reques
    deliberate choice. A link, or the desktop app, could then open a workspace in a new tab
    directly.
 
+3. **Optionally, serve the + panel's page.** The desktop draws its own copy of the header's
+   picker for the + button. A page at app.xuna.ai rendering the real `ScopeSegment` could take
+   its place, kept in step with the platform. The desktop would show it in the same panel with a
+   preload that gives it `window.workspacePanel`:
+   - `onShow((model, fresh) => …)`: the workspaces to list, each `{ kind: 'workspace', id,
+     label, enabled, avatarUrl, badges, current, shortcut }` between `{ kind: 'header', label }`
+     rows, and `dark`; `fresh` when the panel has just opened;
+   - `choose(id)` to open a workspace, `close()`, and `resize(height)` so the panel fits.
+
 ## What the desktop app does
 
 - On Mac, all workspace tabs share one sign-in: Firebase keeps it once per Electron profile.

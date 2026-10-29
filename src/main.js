@@ -11,7 +11,8 @@ const { titleBarColor, macAppViewBounds } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
 const { ACTIVE_WORKSPACE_KEY, TAB_KEY_PREFIXES, readMemory, applyWrite, workspaceOf, seedFor, createIsolationGuard, memoryForPage } = require('./workspace-memory');
-const { parseBootstrap, pickerItems } = require('./workspace-picker');
+const { parseBootstrap, pickerItems, markOpenTabs } = require('./workspace-picker');
+const { createWorkspacePanel } = require('./workspace-panel');
 
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
 const APP_URL = (!app.isPackaged && process.env.XUNA_APP_URL) || config.APP_URL;
@@ -21,8 +22,6 @@ const IS_WINDOWS = process.platform === 'win32';
 // The workspace tabs are Mac only. XUNA_WORKSPACE_TABS=1 shows them in a Windows development run too,
 // under Windows' own title bar, so they can be worked on there.
 const USE_TABS = IS_MAC || (!app.isPackaged && process.env.XUNA_WORKSPACE_TABS === '1');
-// macOS 14 and later draw section headings in menus.
-const MENU_HEADINGS = IS_MAC && Number(process.getSystemVersion().split('.')[0]) >= 14;
 // Every XUNA page: the main window's on Windows, each workspace tab's, and with tabs the pop-ups too.
 const XUNA_PAGE_PREFERENCES = {
   contextIsolation: true,
@@ -370,6 +369,7 @@ function addWorkspaceTabs(win, webPreferences) {
     writeState(stateFile, state);
     sendToStrip();
     updateAppMenu(menu());
+    panel.update(panelModel());
   };
 
   // Moves to a new state and puts the keyboard in the page it shows.
@@ -420,6 +420,27 @@ function addWorkspaceTabs(win, webPreferences) {
     else if (!win.isDestroyed()) win.close();
   };
 
+  // What the + panel lists (src/workspace-picker.js): the account's workspaces, those open in a tab
+  // marked with it, and the panel in the strip's black or white.
+  const panelModel = () => {
+    const openTabs = new Map();
+    for (const tab of state.tabs) {
+      const workspaceId = workspaceOf(tab.memory);
+      if (workspaceId && !openTabs.has(workspaceId)) openTabs.set(workspaceId, tab.id);
+    }
+    const items = tabsTurnedOff
+      ? [{ kind: 'note', label: 'Workspace tabs are off. An update to XUNA AI will turn them back on.' }]
+      : pickerItems({ workspaces: workspaceList, openTabs, canOpenMore: state.tabs.length < MAX_TABS });
+    const modifier = IS_MAC ? '⌘' : 'Ctrl+';
+    return { items: markOpenTabs(items, { tabOrder: state.tabs.map((tab) => tab.id), frontTabId: state.active, modifier }), dark: titleBar === config.BACKGROUND.dark };
+  };
+  const panel = createWorkspacePanel(win, {
+    onChoose: (item) => (item.tabId ? tabs.select(item.tabId) : tabs.openWorkspace(item.id, item.label)),
+    onClosed: (refocus) => {
+      if (refocus) pageOf(state.active)?.focus();
+    },
+  });
+
   // A tab's page wrote to its workspace memory: the tab takes its workspace's name.
   const updateMemory = (id, memory) => {
     state = setTabMemory(state, id, memory);
@@ -455,17 +476,9 @@ function addWorkspaceTabs(win, webPreferences) {
       refresh();
     },
     // The + menu, under the + button: anchor is its rectangle in the strip.
+    // The + panel, under the + button: anchor is its rectangle in the strip. Pressed again, it closes.
     pick: (anchor) => {
-      const openTabs = new Map();
-      for (const tab of state.tabs) {
-        const workspaceId = workspaceOf(tab.memory);
-        if (workspaceId && !openTabs.has(workspaceId)) openTabs.set(workspaceId, tab.id);
-      }
-      const items = tabsTurnedOff
-        ? [{ kind: 'note', label: 'Workspace tabs are off. An update to XUNA AI will turn them back on.' }]
-        : pickerItems({ workspaces: workspaceList, openTabs, canOpenMore: state.tabs.length < MAX_TABS });
-      const position = anchor ? { x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height) } : {};
-      pickerMenu(items, { select: (id) => tabs.select(id), open: (workspaceId, name) => tabs.openWorkspace(workspaceId, name) }).popup({ window: win, ...position });
+      if (anchor) panel.toggle(anchor, panelModel());
     },
     // A workspace already open in a tab is shown there; otherwise it opens in a new tab, as a deliberate
     // choice, the way a click in XUNA's own switcher opens it.
@@ -516,7 +529,12 @@ function addWorkspaceTabs(win, webPreferences) {
   workspaceTabs.set(win, tabs);
 
   for (const tab of state.tabs) openPage(tab.id);
-  for (const event of ['resize', 'enter-full-screen', 'leave-full-screen']) win.on(event, layout);
+  for (const event of ['resize', 'enter-full-screen', 'leave-full-screen']) {
+    win.on(event, () => {
+      layout();
+      panel.close();
+    });
+  }
   win.on('focus', () => pageOf(state.active)?.focus()); // typing goes to XUNA, not the strip
   win.on('page-title-updated', (event) => event.preventDefault());
   win.webContents.on('did-finish-load', sendToStrip);
@@ -546,23 +564,6 @@ function onWorkspaceTabRequest(event, request) {
 // The + button's rectangle as the strip measured it, or null.
 function anchorOf(rect) {
   return rect && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(rect[key])) ? rect : null;
-}
-
-// The + menu's items (see pickerItems in src/workspace-picker.js) as a native menu.
-function pickerMenu(items, { select, open }) {
-  const text = (label) => (IS_WINDOWS ? label.replaceAll('&', '&&') : label); // Windows reads & as a shortcut key
-  const template = [];
-  for (const item of items) {
-    if (item.kind === 'workspace') {
-      const choose = () => (item.tabId ? select(item.tabId) : open(item.id, item.label));
-      template.push({ label: text(item.label), type: 'checkbox', checked: item.tabId !== null, enabled: item.enabled, click: choose });
-      continue;
-    }
-    if (template.length > 0) template.push({ type: 'separator' });
-    if (item.kind === 'header' && MENU_HEADINGS) template.push({ type: 'header', label: text(item.label) });
-    else template.push({ label: text(item.label), enabled: false });
-  }
-  return Menu.buildFromTemplate(template);
 }
 
 // The workspace tab whose page this is, as { tabs, id }, or null.

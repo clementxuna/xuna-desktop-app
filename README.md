@@ -26,9 +26,10 @@ build from the same code.
 - On Mac it behaves like a Mac app: closing the window keeps XUNA AI in the Dock, clicking
   the Dock icon opens it again, and it has the usual app and Window menus.
 - On Mac, several workspaces can be open at once, as tabs at the right end of the title bar
-  strip. The + button (⌘T) lists the workspaces the signed-in account can open, grouped as in
-  XUNA's own switcher; picking one opens it in a new tab, already signed in, or shows the tab it
-  is open in. Clicking a tab, ⌘1 to ⌘9 or ⌃Tab switches between them, and double-clicking a tab
+  strip. The + button (⌘T) opens a panel drawn like XUNA's own workspace picker: a search
+  field over the workspaces the signed-in account can open, grouped as in XUNA's switcher, with
+  their logos. Picking one opens it in a new tab, already signed in, or shows the tab it is open
+  in (open tabs show their ⌘ shortcut). Clicking a tab, ⌘1 to ⌘9 or ⌃Tab switches between them, and double-clicking a tab
   renames it. The tabs share one sign-in, and each keeps its own workspace, so tabs never switch
   each other's workspace. Each tab is named after its workspace, and the open tabs come back in
   their workspaces when the app reopens (`src/workspace-tabs.js`, `src/workspace-memory.js`,

@@ -113,14 +113,29 @@ reason for it.
     sign-ins in them, are deleted at start-up. A tab saved before this starts from the
     workspace the shared profile last held, which is tab 1's, and tabs 2 to 9 lose the names
     typed for them, which may have named another account's workspace.
-- **The + menu shows XUNA's own list.** Every XUNA page checks its sign-in with
+- **The + panel shows XUNA's own list.** Every XUNA page checks its sign-in with
   `POST /v2/auth/bootstrap` as it starts and when it switches workspace; the answer's
   `accessList` is every workspace the account can open. The preload passes each answer on, and
-  the menu offers what XUNA's switcher offers, grouped the same way: the platform, each agency
-  with its clients, then clients of agencies the user isn't in. It is a native menu, with
-  headings on macOS 14 and later. A workspace open in a tab has a tick and shows that tab; any
-  other opens in a new tab as a deliberate choice, as a click in XUNA's switcher does
-  (`src/workspace-picker.js`). A tab is named after its workspace unless a name was typed, from
+  the panel offers what XUNA's switcher offers, grouped the same way: the platform, each agency
+  with its clients, then clients of agencies the user isn't in. The tab in front has XUNA's
+  tick, and the other open tabs show their ⌘ shortcut; picking one shows its tab, and any other
+  workspace opens in a new tab as a deliberate choice, as a click in XUNA's switcher does
+  (`src/workspace-picker.js`).
+- **The panel is drawn as XUNA's own picker,** the panel of its header's breadcrumb
+  (`scope-segment.tsx` in the web app): 384px wide, a search field with an Esc key over the
+  grouped list, a 20px logo or XUNA's coloured initials (the same palette for the same name),
+  the Build Mode badge, and the tick. Its colours, type and shadow are what XUNA's stylesheet
+  computes in each theme, measured from app.xuna.ai's own CSS, and it follows the theme the tab
+  shows. Inter comes from Google Fonts, as app.xuna.ai gets it. Search ignores case and accents,
+  and the arrow keys and Enter work it.
+  - It is a small local page (`src/workspace-picker-panel.html`) in a view over the tabs, below
+    the + button, not a window of its own, so it behaves in full screen and moves with the
+    window. It closes when a workspace is picked, on Escape, and when anything else is clicked,
+    which takes its focus (`src/workspace-panel.js`).
+  - Its page has its own preload with four calls (show, choose, close, resize), so a page XUNA
+    serves with its real component could take its place without the rest changing (see
+    `docs/multi-tab-workspaces.md`). A workspace it names is opened only if it was offered.
+  - It replaced a native menu, which had no search and couldn't look like XUNA. A tab is named after its workspace unless a name was typed, from
   XUNA's whole list, so a workspace the menu doesn't offer (one still being set up) still names
   its tab. A tab that moves to a workspace with no known name shows "Workspace N" until it has
   one, and renaming a tab to the name it already shows keeps it following its workspace.

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https:">
+  <title>Open Workspace</title>
+  <!-- The + button's panel of workspaces on Mac (see src/workspace-panel.js), drawn as XUNA's own
+       workspace picker is: the panel of its header's breadcrumb (scope-segment.tsx in the web app),
+       with the values its stylesheet computes to in each theme. Inter comes from where app.xuna.ai
+       gets it; offline, the system font stands in.
+
+       It declares no colour scheme, as the title strip doesn't: Chromium would paint a dark page's
+       ground grey, and the view round the panel must stay clear for its shadow. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&display=swap">
+  <style>
+    :root {
+      --surface: #ffffff;
+      --text: #181d27;
+      --muted-text: #535862;
+      --border: #e9eaeb;
+      --muted: #fafafa; /* a row under the pointer or the one you are on, and the key chips */
+      --tick: #181d27;
+      --badge-surface: oklab(0.999994 0 0 / 0.1);
+      --badge-edge: oklab(0.878477 -0.0009 -0.0045 / 0.1);
+      --shadow: 0 4px 6px -1px rgb(10 13 18 / 0.1), 0 2px 4px -2px rgb(10 13 18 / 0.06);
+    }
+    :root[data-theme="dark"] {
+      --surface: #070707;
+      --text: #f7f7f7;
+      --muted-text: #979797;
+      --border: #141618;
+      --muted: #161616;
+      --tick: #f7f7f7;
+      --badge-surface: oklab(0.128557 0 0 / 0.15);
+      --badge-edge: oklab(0.198867 -0.0019 -0.0047 / 0.25);
+    }
+    html, body { margin: 0; background: transparent; }
+    /* The margin round the panel is room for its shadow (PANEL_MARGIN in src/title-bar.js). */
+    body { padding: 4px 12px 16px; overflow: hidden; font: 400 14px/20px Inter, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased; user-select: none; cursor: default; }
+    .panel { box-sizing: border-box; width: 100%; max-width: 384px; margin-left: auto; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+    .search { display: flex; align-items: center; height: 36px; border-bottom: 1px solid var(--border); }
+    .search > svg { flex: none; width: 16px; height: 16px; margin-left: 12px; color: var(--muted-text); }
+    .search input { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0 8px; border: 0; outline: 0; background: transparent; color: var(--text); caret-color: var(--text); font: inherit; user-select: text; }
+    .search input::placeholder { color: var(--muted-text); opacity: 1; }
+    .close { display: grid; place-items: center; margin: 0 12px 0 0; padding: 0; border: 0; border-radius: 4px; background: none; cursor: pointer; }
+    kbd { display: inline-flex; flex: none; align-items: center; justify-content: center; box-sizing: border-box; height: 20px; min-width: 20px; padding: 0 4px; border-radius: 4px; background: var(--muted); color: var(--muted-text); font: 500 12px/18px Inter, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+    .list { max-height: 288px; overflow-y: auto; padding: 4px 0; scrollbar-width: none; }
+    .list::-webkit-scrollbar { display: none; }
+    .heading { overflow: hidden; padding: 8px 12px 4px; color: var(--muted-text); font-size: 12px; font-weight: 500; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+    .row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; transition: background-color 100ms linear; }
+    .row.current, .row.highlighted { background: var(--muted); }
+    .row[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+    .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row kbd { height: 18px; font-size: 11px; }
+    .badge { display: inline-flex; flex: none; align-items: center; box-sizing: border-box; height: 18px; padding: 1px 4px; border: 1px solid var(--badge-edge); border-radius: 9999px; background: var(--badge-surface); font-size: 10px; font-weight: 500; line-height: 10px; white-space: nowrap; }
+    .tick { flex: none; width: 16px; height: 16px; color: var(--tick); }
+    .empty { margin: 0; padding: 8px 12px; color: var(--muted-text); }
+    .footer { padding: 8px 12px; border-top: 1px solid var(--border); color: var(--muted-text); font-size: 12px; line-height: 18px; }
+    [hidden] { display: none !important; }
+
+    /* XUNA's avatars: the logo, or white initials over a mesh of four colours on a base, picked by
+       the workspace's name (avatarPalette in src/workspace-picker.js), with a faint inner edge. */
+    .avatar { position: relative; display: grid; flex: none; place-items: center; width: 20px; height: 20px; overflow: hidden; border-radius: 9999px; color: #fff; font-size: 10px; font-weight: 500; line-height: 1; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar.initials { background-image: radial-gradient(circle at 18% 18%, var(--a) 0%, transparent 62%), radial-gradient(circle at 84% 22%, var(--b) 0%, transparent 62%), radial-gradient(circle at 22% 84%, var(--c) 0%, transparent 62%), radial-gradient(circle at 82% 80%, var(--d) 0%, transparent 66%), linear-gradient(var(--base), var(--base)); }
+    .avatar.initials::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.2); }
+    .mesh-0 { --a: rgb(60 203 127); --b: rgb(250 197 21); --c: rgb(21 183 158); --d: rgb(46 144 250); --base: rgb(22 179 100); }
+    .mesh-1 { --a: rgb(34 204 238); --b: rgb(46 144 250); --c: rgb(46 211 183); --d: rgb(135 91 247); --base: rgb(46 144 250); }
+    .mesh-2 { --a: rgb(164 138 251); --b: rgb(212 68 241); --c: rgb(122 90 248); --d: rgb(246 61 104); --base: rgb(122 90 248); }
+    .mesh-3 { --a: rgb(253 111 142); --b: rgb(243 135 68); --c: rgb(238 70 188); --d: rgb(227 27 84); --base: rgb(246 61 104); }
+    .mesh-4 { --a: rgb(228 120 250); --b: rgb(246 61 104); --c: rgb(135 91 247); --d: rgb(238 70 188); --base: rgb(212 68 241); }
+    .mesh-5 { --a: rgb(83 177 253); --b: rgb(135 91 247); --c: rgb(34 204 238); --d: rgb(97 114 243); --base: rgb(97 114 243); }
+    .mesh-6 { --a: rgb(155 138 251); --b: rgb(238 70 188); --c: rgb(212 68 241); --d: rgb(120 57 238); --base: rgb(122 90 248); }
+    .mesh-7 { --a: rgb(246 112 199); --b: rgb(243 135 68); --c: rgb(134 203 60); --d: rgb(246 61 104); --base: rgb(238 70 188); }
+    .mesh-8 { --a: rgb(60 203 127); --b: rgb(134 203 60); --c: rgb(21 183 158); --d: rgb(250 197 21); --base: rgb(102 159 42); }
+    .mesh-9 { --a: rgb(164 138 251); --b: rgb(46 144 250); --c: rgb(212 68 241); --d: rgb(105 56 239); --base: rgb(135 91 247); }
+    .mesh-10 { --a: rgb(105 124 224); --b: rgb(34 204 238); --c: rgb(97 114 243); --d: rgb(135 91 247); --base: rgb(61 85 215); }
+    .mesh-11 { --a: rgb(243 135 68); --b: rgb(250 197 21); --c: rgb(246 61 104); --d: rgb(238 70 188); --base: rgb(239 104 32); }
+  </style>
+</head>
+<body>
+  <div class="panel" role="dialog" aria-label="Open a workspace">
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.34-4.34"/></svg>
+      <input id="search" type="text" role="combobox" aria-expanded="true" aria-controls="list" aria-autocomplete="list" aria-label="Find workspace" placeholder="Find workspace..." autocomplete="off" spellcheck="false">
+      <button class="close" type="button" aria-label="Close"><kbd>Esc</kbd></button>
+    </div>
+    <div class="list" id="list" role="listbox" aria-label="Workspaces"></div>
+    <div class="footer" hidden></div>
+  </div>
+  <script src="workspace-picker.js"></script>
+  <script src="workspace-picker-panel.js"></script>
+</body>
+</html>

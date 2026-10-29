@@ -28,4 +28,23 @@ function macAppViewBounds({ width, height, fullScreen, tabCount = 1 }) {
   return { x: 0, y: top, width: Math.max(0, width), height: Math.max(0, height - top) };
 }
 
-module.exports = { MAC_TITLE_STRIP_HEIGHT, titleBarColor, macAppViewBounds };
+// The + button's panel of workspaces (src/workspace-picker-panel.html), as wide as XUNA's own picker.
+// Its view keeps a transparent margin round the panel for the panel's shadow, and it sits 8px below the
+// button, as XUNA's popovers sit below the control that opens them.
+const PICKER_PANEL_WIDTH = 384;
+const PANEL_MARGIN = { side: 12, top: 4, bottom: 16 };
+const PANEL_GAP = 8;
+
+// Where the panel's view goes in a window with this content size: under the + button (anchor: its
+// rectangle in the strip), right edges in line, kept inside the window. panelHeight: what the panel's
+// page measured itself at.
+function pickerPanelBounds({ anchor, width, height, panelHeight }) {
+  const viewWidth = Math.min(PICKER_PANEL_WIDTH + 2 * PANEL_MARGIN.side, width);
+  const right = anchor.x + anchor.width + PANEL_MARGIN.side;
+  const x = Math.max(0, Math.min(right - viewWidth, width - viewWidth));
+  const y = anchor.y + anchor.height + PANEL_GAP - PANEL_MARGIN.top;
+  const wanted = panelHeight + PANEL_MARGIN.top + PANEL_MARGIN.bottom;
+  return { x: Math.round(x), y: Math.round(y), width: Math.round(viewWidth), height: Math.round(Math.max(0, Math.min(wanted, height - y))) };
+}
+
+module.exports = { MAC_TITLE_STRIP_HEIGHT, titleBarColor, macAppViewBounds, PICKER_PANEL_WIDTH, pickerPanelBounds };

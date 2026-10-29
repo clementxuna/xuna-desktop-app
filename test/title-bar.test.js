@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { MAC_TITLE_STRIP_HEIGHT, titleBarColor, macAppViewBounds } = require('../src/title-bar');
+const { MAC_TITLE_STRIP_HEIGHT, titleBarColor, macAppViewBounds, PICKER_PANEL_WIDTH, pickerPanelBounds } = require('../src/title-bar');
 const { BACKGROUND } = require('../src/config');
 
 test("the title bar uses the black and white of the app's header", () => {
@@ -82,4 +82,17 @@ test('the strip runs only its own script file', () => {
   assert.match(policy, /default-src 'none'/);
   assert.match(policy, /script-src 'self'(;|$)/);
   assert.doesNotMatch(stripHtml(), /<script>/); // an inline script would be refused anyway
+});
+
+test("the workspace panel opens below the + button, its right edge in line with the button's, as wide as XUNA's", () => {
+  // The view holds the panel and a transparent margin for its shadow: 12px either side, 4 above, 16 below.
+  const anchor = { x: 1240, y: 4, width: 20, height: 20 };
+  assert.equal(PICKER_PANEL_WIDTH, 384);
+  assert.deepEqual(pickerPanelBounds({ anchor, width: 1280, height: 820, panelHeight: 300 }), { x: 864, y: 28, width: 408, height: 320 });
+});
+
+test('the workspace panel stays inside a narrow window, and no taller than the space below the strip', () => {
+  const anchor = { x: 360, y: 4, width: 20, height: 20 };
+  assert.deepEqual(pickerPanelBounds({ anchor, width: 400, height: 500, panelHeight: 300 }), { x: 0, y: 28, width: 400, height: 320 });
+  assert.equal(pickerPanelBounds({ anchor, width: 1280, height: 200, panelHeight: 300 }).height, 172);
 });
