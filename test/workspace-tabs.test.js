@@ -12,6 +12,7 @@ const {
   selectTab,
   cycleTab,
   renameTab,
+  moveTab,
   setTabMemory,
   nameWorkspaces,
   tabShowing,
@@ -136,6 +137,23 @@ test('stepping through the tabs wraps around at either end', () => {
   assert.equal(cycleTab(state, 1).active, 'workspace-1');
   assert.equal(cycleTab(state, -1).active, 'workspace-2');
   assert.equal(cycleTab({ ...state, active: 'workspace-1' }, -1).active, 'workspace-3');
+});
+
+test('a tab dragged to another place goes there, the others keep their order, and the shown tab stays shown', () => {
+  const state = { tabs: tabs('workspace-1', 'workspace-2', 'workspace-3'), active: 'workspace-2' };
+  const order = (next) => next.tabs.map((entry) => entry.id);
+  assert.deepEqual(order(moveTab(state, 'workspace-1', 2)), ['workspace-2', 'workspace-3', 'workspace-1']);
+  assert.deepEqual(order(moveTab(state, 'workspace-3', 0)), ['workspace-3', 'workspace-1', 'workspace-2']);
+  assert.equal(moveTab(state, 'workspace-3', 0).active, 'workspace-2');
+  assert.deepEqual(order(moveTab(state, 'workspace-1', 99)), ['workspace-2', 'workspace-3', 'workspace-1']); // past the end: last
+});
+
+test('a drop where the tab already is, or of a tab that has gone, changes nothing', () => {
+  const state = { tabs: tabs('workspace-1', 'workspace-2'), active: 'workspace-1' };
+  assert.equal(moveTab(state, 'workspace-2', 1), state);
+  assert.equal(moveTab(state, 'workspace-9', 0), state);
+  assert.equal(moveTab(state, 'workspace-1', -3), state); // before the start: first, where it is
+  assert.equal(moveTab(state, 'workspace-1', Number.NaN), state);
 });
 
 test('renaming changes only that tab, keeps names short, and an empty name restores the default', () => {

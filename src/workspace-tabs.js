@@ -93,6 +93,18 @@ function cycleTab(state, step) {
   return { ...state, active: state.tabs[(((index + step) % count) + count) % count].id };
 }
 
+// A tab dragged along the strip to index, its place in the new order: the others keep their order, and
+// the tab shown stays shown. ⌘1 to ⌘9 follow the new order.
+function moveTab(state, id, index) {
+  const from = state.tabs.findIndex((tab) => tab.id === id);
+  if (from < 0 || !Number.isFinite(index)) return state;
+  const to = Math.max(0, Math.min(Math.trunc(index), state.tabs.length - 1));
+  if (to === from) return state;
+  const tabs = state.tabs.filter((tab) => tab.id !== id);
+  tabs.splice(to, 0, state.tabs[from]);
+  return { ...state, tabs };
+}
+
 // A tab renamed to the name it already shows keeps following its workspace's name.
 function renameTab(state, id, name) {
   return {
@@ -147,6 +159,7 @@ module.exports = {
   selectTab,
   cycleTab,
   renameTab,
+  moveTab,
   setTabMemory,
   nameWorkspaces,
   tabShowing,

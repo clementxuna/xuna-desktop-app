@@ -136,4 +136,14 @@ function attachContextMenu(contents, openExternal) {
   });
 }
 
-module.exports = { buildAppMenu, appMenuTemplate, attachContextMenu };
+// What right-clicking a workspace tab in the title strip offers, as Safari's tabs do. count: the tabs open.
+function tabMenuTemplate({ count, rename, close, closeOthers }) {
+  return [
+    { label: 'Rename Tab…', click: () => rename() },
+    { type: 'separator' },
+    { label: 'Close Tab', enabled: count > 1, click: () => close() },
+    { label: 'Close Other Tabs', enabled: count > 1, click: () => closeOthers() },
+  ];
+}
+
+module.exports = { buildAppMenu, appMenuTemplate, attachContextMenu, tabMenuTemplate };
