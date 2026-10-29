@@ -1,0 +1,34 @@
+/* XUNA AI on Mac, in one row (see macWindowLayout in src/title-bar.js and watchHeader in
+   src/preload.js). The main process puts this into every workspace tab's XUNA page, where it does
+   nothing until the preload marks <html> with data-xuna-desktop-row. Then XUNA's own header, which the
+   preload marks data-xuna-desktop-bar, is the window's title bar: it moves over by the width of the
+   strip's view at its left end, and its empty space drags the window.
+
+   Electron drags the window from any visible view's drag area, whatever lies on top of it, and works out
+   a page's drag area in page order, later elements over earlier ones. So the header moves with a margin,
+   not padding, putting its box, and with it its drag area, only where the strip isn't. Everything that
+   takes clicks in or over the header is marked no-drag: its own controls, XUNA's dialogs, menus and
+   drawers (in layers at the end of the page) and its toasts. While something covers the whole header,
+   as a dialog's backdrop does, the header doesn't drag the window at all. */
+
+:root[data-xuna-desktop-row] [data-xuna-desktop-bar] {
+  margin-inline-start: var(--xuna-desktop-row-inset, 0px) !important;
+  width: calc(100% - var(--xuna-desktop-row-inset, 0px)) !important;
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+
+:root[data-xuna-desktop-row] [data-xuna-desktop-bar] > * > *,
+:root[data-xuna-desktop-row] [data-xuna-desktop-bar] :is(a, button, input, select, textarea, label, [role], [tabindex], [contenteditable]),
+:root[data-xuna-desktop-row] body > :not(#root),
+:root[data-xuna-desktop-row] :is([data-sonner-toaster], [data-sonner-toast]),
+:root[data-xuna-desktop-row][data-xuna-desktop-covered] [data-xuna-desktop-bar] {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+/* The window isn't in front: the header's contents fade, as the strip's controls and macOS's own
+   toolbars do. */
+:root[data-xuna-desktop-row][data-xuna-desktop-inactive] [data-xuna-desktop-bar] > * {
+  opacity: 0.5;
+}

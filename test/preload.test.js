@@ -59,12 +59,37 @@ function makeBrowser() {
   return { FakeStorage, FakeXhr };
 }
 
+// <html>: its attributes and its inline style's properties.
+function fakeRoot() {
+  const attributes = new Set();
+  const properties = new Map();
+  return {
+    attributes,
+    properties,
+    hasAttribute: (name) => attributes.has(name),
+    toggleAttribute: (name, force) => {
+      const on = force ?? !attributes.has(name);
+      if (on) attributes.add(name);
+      else attributes.delete(name);
+      return on;
+    },
+    style: {
+      getPropertyValue: (name) => properties.get(name) ?? '',
+      setProperty: (name, value) => properties.set(name, value),
+      removeProperty: (name) => properties.delete(name),
+    },
+  };
+}
+
 // seed: what the main process answers for this page (see xuna:workspace-memory in src/main.js).
 // askButton: XUNA's header Ask AI button as the page has it, or null for a page without one.
-function runPreload({ seed, shared = {}, failHook = false, askButton = null } = {}) {
+// page: a page with XUNA's header (see xunaPage), or null for one without.
+function runPreload({ seed, shared = {}, failHook = false, askButton = null, page = null } = {}) {
   const sent = [];
   const ipcListeners = {};
   const observers = [];
+  const documentListeners = {};
+  const root = fakeRoot();
   const globals = ['window', 'Storage', 'XMLHttpRequest', 'document', 'MutationObserver', 'getComputedStyle'];
   const saved = Object.fromEntries(globals.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const { FakeStorage, FakeXhr } = makeBrowser();
@@ -74,8 +99,15 @@ function runPreload({ seed, shared = {}, failHook = false, askButton = null } = 
   globalThis.Storage = FakeStorage;
   globalThis.XMLHttpRequest = FakeXhr;
   globalThis.document = {
-    documentElement: {},
-    querySelector: (selector) => (selector === 'button[aria-label="Ask AI"]' ? askButton : null),
+    documentElement: root,
+    body: page?.body ?? null,
+    querySelector: (selector) => {
+      if (selector === 'button[aria-label="Ask AI"]') return askButton;
+      if (selector === 'a[aria-label="Go to home"]') return page?.logo ?? null;
+      return null;
+    },
+    elementFromPoint: (x, y) => page?.at(x, y) ?? null,
+    addEventListener: (type, listener) => (documentListeners[type] ??= []).push(listener),
   };
   globalThis.MutationObserver = class {
     constructor(callback) {
@@ -83,9 +115,10 @@ function runPreload({ seed, shared = {}, failHook = false, askButton = null } = 
     }
     observe() {}
   };
-  globalThis.getComputedStyle = (element) => ({ colorScheme: 'normal', getPropertyValue: (name) => element?.cssVariables?.[name] ?? '' });
+  globalThis.getComputedStyle = (element) => ({ colorScheme: 'normal', getPropertyValue: (name) => element?.cssVariables?.[name] ?? '', ...element?.computed });
   globalThis.window = {
     localStorage,
+    innerWidth: page?.innerWidth ?? 1280,
     matchMedia: () => ({ matches: false, addEventListener() {} }),
     addEventListener: (type, listener) => (listeners[type] ??= []).push(listener),
     fetch: async () => ({ status: 200, clone: () => ({ text: async () => fetched.shift() ?? '' }) }),
@@ -123,9 +156,9 @@ function runPreload({ seed, shared = {}, failHook = false, askButton = null } = 
     }
   };
   const dispatch = (type, event) => (listeners[type] ?? []).forEach((listener) => listener(event));
-  const fromMain = (channel) => (ipcListeners[channel] ?? []).forEach((listener) => listener({}));
+  const fromMain = (channel, ...args) => (ipcListeners[channel] ?? []).forEach((listener) => listener({}, ...args));
   const mutate = () => observers.forEach((callback) => callback([]));
-  return { sent, localStorage, page: globalThis.window, fetched, dispatch, fromMain, mutate, restore };
+  return { sent, localStorage, page: globalThis.window, root, fetched, dispatch, fromMain, mutate, restore };
 }
 
 const tabSeed = (values, remembered = values?.[ACTIVE] ?? null, report = true) => ({ prefixes: PREFIXES, activeKey: ACTIVE, values, remembered, report });
@@ -311,4 +344,115 @@ test("a page without XUNA's Ask AI says so, and a pop-up stays out of it", (t) =
   t.after(popup.restore);
   popup.dispatch('DOMContentLoaded');
   assert.deepEqual(askStates(popup), []);
+});
+
+// A stand-in for an element: its box in the page, its children, and what getComputedStyle gives for it.
+function box(tagName, rect, { children = [], computed = {} } = {}) {
+  const node = {
+    tagName,
+    children,
+    computed,
+    parentElement: null,
+    attributes: new Set(),
+    getBoundingClientRect: () => ({ ...rect, right: rect.left + rect.width, bottom: rect.top + rect.height }),
+    setAttribute: (name) => node.attributes.add(name),
+    removeAttribute: (name) => node.attributes.delete(name),
+    contains: (other) => other === node || children.some((child) => child.contains(other)),
+    closest: (selector) => {
+      for (let at = node; at; at = at.parentElement) if (at.tagName.toLowerCase() === selector) return at;
+      return null;
+    },
+  };
+  for (const child of children) child.parentElement = node;
+  return node;
+}
+
+// XUNA's header in a 1280-wide page, as the live app lays it out: its home link at the left, its controls
+// from the workspace switcher to the avatar at the right, the mobile menu button among them hidden. What
+// lies at any point of the header's mid-line is the header's own controls, until something covers them.
+function xunaPage({ top = 0, width = 1280 } = {}) {
+  const logo = box('A', { left: 22, top: 18, width: 80, height: 20 });
+  const left = box('DIV', { left: 24, top: 18, width: 78, height: 20 }, { children: [logo] });
+  const right = box('DIV', { left: 776, top: 12, width: 480, height: 32 }, {
+    children: [
+      box('BUTTON', { left: 776, top: 12, width: 180, height: 32 }), // the workspace switcher
+      box('BUTTON', { left: 0, top: 0, width: 0, height: 0 }), // the mobile menu button, hidden
+      box('BUTTON', { left: 1224, top: 12, width: 32, height: 32 }), // the avatar
+    ],
+  });
+  const header = box('HEADER', { left: 0, top, width, height: 56 }, {
+    children: [left, right],
+    computed: { paddingLeft: '24px', paddingRight: '24px', columnGap: '8px', backgroundColor: 'rgb(255, 255, 255)', borderBottomWidth: '1px', borderBottomColor: 'rgb(233, 234, 235)', position: 'relative' },
+  });
+  const body = box('BODY', { left: 0, top: 0, width: 1280, height: 820 }, { children: [header] });
+  const page = { logo, header, body, innerWidth: 1280, covering: null, at: () => page.covering ?? right };
+  return page;
+}
+const headerReports = (run) => run.sent.filter(([channel]) => channel === 'xuna:title-bar-header').map((message) => message[1]);
+
+test("a tab's page finds XUNA's header and says how tall it is, the room its contents need, and its colours", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  // 24 + 24 of padding, the home link's 80, the controls' 480 (the hidden button aside) and one 8px gap
+  assert.deepEqual(headerReports(run), [{ height: 56, minWidth: 616, innerWidth: 1280, background: 'rgb(255, 255, 255)', border: 'rgb(233, 234, 235)', cover: null }]);
+  assert.ok(page.header.attributes.has('data-xuna-desktop-bar'));
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.equal(headerReports(run).length, 1); // nothing changed, so nothing more is said
+});
+
+test("a page without XUNA's header, or with one anywhere but along the top, has no title bar to offer", () => {
+  for (const page of [null, xunaPage({ top: 40 }), xunaPage({ width: 600 })]) {
+    const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+    run.dispatch('DOMContentLoaded');
+    assert.deepEqual(headerReports(run), [null]);
+    run.restore();
+  }
+});
+
+test("when a XUNA dialog's backdrop covers the header, the page says how it looks, and the header stops dragging the window", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  page.covering = box('DIV', { left: 0, top: 0, width: 1280, height: 820 }, { computed: { position: 'fixed', backdropFilter: 'blur(16px) saturate(1.25)', backgroundColor: 'rgba(0, 0, 0, 0.1)' } });
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.deepEqual(headerReports(run).at(-1).cover, { filter: 'blur(16px) saturate(1.25)', tint: 'rgba(0, 0, 0, 0.1)' });
+  assert.ok(run.root.attributes.has('data-xuna-desktop-covered')); // so the dialog takes every click over it
+  page.covering = null;
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.equal(headerReports(run).at(-1).cover, null);
+  assert.ok(!run.root.attributes.has('data-xuna-desktop-covered'));
+});
+
+test('the room the main process makes for the strip is applied to the page, kept there, and taken away again', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page: xunaPage() });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:title-bar-row', { inset: 184, inactive: true });
+  assert.ok(run.root.attributes.has('data-xuna-desktop-row'));
+  assert.equal(run.root.properties.get('--xuna-desktop-row-inset'), '184px');
+  assert.ok(run.root.attributes.has('data-xuna-desktop-inactive'));
+  run.root.properties.clear(); // XUNA's own code resets <html>'s style
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.equal(run.root.properties.get('--xuna-desktop-row-inset'), '184px');
+  run.fromMain('xuna:title-bar-row', null);
+  assert.deepEqual([...run.root.attributes], []);
+  assert.equal(run.root.properties.size, 0);
+  t.mock.timers.tick(250);
+});
+
+test('a pop-up offers no title bar', (t) => {
+  const popup = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }, 'ws-tab', false), page: xunaPage() });
+  t.after(popup.restore);
+  popup.dispatch('DOMContentLoaded');
+  assert.deepEqual(headerReports(popup), []);
 });

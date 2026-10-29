@@ -21,7 +21,129 @@ contextBridge.exposeInMainWorld('xunaDesktop', {
 // null for a page that keeps the profile's shared storage: anything outside a workspace tab.
 const workspace = ipcRenderer.sendSync('xuna:workspace-memory');
 if (workspace) keepWorkspaceInTab(workspace);
-if (workspace?.report) watchAskAi();
+if (workspace?.report) {
+  watchAskAi();
+  watchHeader();
+}
+
+// XUNA redraws often, so its page is looked at again at most five times a second: the function this
+// returns asks for a look, which happens 200ms after the first ask.
+function throttled(look) {
+  let waiting = false;
+  return () => {
+    if (waiting) return;
+    waiting = true;
+    setTimeout(() => {
+      waiting = false;
+      look();
+    }, 200);
+  };
+}
+
+// In one row the tab's XUNA page fills the window and XUNA's own header is its title bar (see
+// macWindowLayout in src/title-bar.js, and src/one-row.css). This finds the header and tells the main
+// process how tall it is and how much room its contents need, in CSS pixels; the page's width in them,
+// which gives its zoom; its colours; and how anything covering it looks. It applies the room the main
+// process makes at the header's start for the strip, and the fade while the window isn't in front.
+function watchHeader() {
+  let header = null;
+  let row = null; // the main process's word: { inset, inactive } in one row, null otherwise
+  let covered = false;
+  let last = '';
+  const report = () => {
+    const found = findHeader();
+    if (found !== header) {
+      header?.removeAttribute('data-xuna-desktop-bar');
+      header = found;
+      header?.setAttribute('data-xuna-desktop-bar', '');
+    }
+    const state = header ? describeHeader(header) : null;
+    covered = Boolean(state?.cover);
+    applyRow(row, covered); // each time, in case XUNA's own code took it away
+    const serialized = JSON.stringify(state);
+    if (serialized === last) return;
+    last = serialized;
+    ipcRenderer.send('xuna:title-bar-header', state);
+  };
+  const soon = throttled(report);
+  window.addEventListener('DOMContentLoaded', () => {
+    new MutationObserver(soon).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+    report();
+  });
+  window.addEventListener('resize', soon);
+  document.addEventListener('load', soon, true); // a workspace's logo arriving changes the room the header needs
+  ipcRenderer.on('xuna:title-bar-row', (_event, next) => {
+    row = next && Number.isFinite(next.inset) ? { inset: next.inset, inactive: next.inactive === true } : null;
+    applyRow(row, covered);
+    soon();
+  });
+}
+
+// XUNA's header: the one holding its home link, along the top of the page and reaching its right edge
+// (in one row it starts where the strip ends). Any other is not taken for the title bar.
+function findHeader() {
+  const candidate = document.querySelector('a[aria-label="Go to home"]')?.closest('header');
+  if (!candidate) return null;
+  const box = candidate.getBoundingClientRect();
+  const along = Math.abs(box.top) <= 1 && box.height >= 40 && box.height <= 80;
+  const across = box.right >= window.innerWidth - 1 && box.width >= window.innerWidth / 2;
+  return along && across ? candidate : null;
+}
+
+function describeHeader(header) {
+  const box = header.getBoundingClientRect();
+  const style = getComputedStyle(header);
+  const px = (value) => Number.parseFloat(value) || 0;
+  const parts = [...header.children].map(contentWidth).filter((width) => width > 0);
+  const contents = parts.reduce((sum, width) => sum + width, 0) + px(style.columnGap) * Math.max(0, parts.length - 1);
+  return {
+    height: box.height,
+    minWidth: Math.ceil(px(style.paddingLeft) + px(style.paddingRight) + contents),
+    innerWidth: window.innerWidth,
+    background: style.backgroundColor,
+    border: px(style.borderBottomWidth) > 0 ? style.borderBottomColor : null,
+    cover: coverOf(header, box),
+  };
+}
+
+// The room a part of the header needs: the span of what shows in it, or its own width.
+function contentWidth(part) {
+  const boxes = [...part.children].map((child) => child.getBoundingClientRect()).filter((box) => box.width > 0);
+  if (boxes.length === 0) return part.getBoundingClientRect().width;
+  return Math.max(...boxes.map((box) => box.right)) - Math.min(...boxes.map((box) => box.left));
+}
+
+// Whatever covers the header from outside it, as the blurred backdrop behind a XUNA dialog does: how its
+// layer looks, so the strip can look the same, or null when nothing does.
+function coverOf(header, box) {
+  const y = box.top + box.height / 2;
+  const hits = [0.25, 0.5, 0.75].map((share) => document.elementFromPoint(box.left + box.width * share, y));
+  if (!hits.every((hit) => hit && !header.contains(hit))) return null;
+  let layer = hits[1];
+  while (layer && layer !== document.body && getComputedStyle(layer).position !== 'fixed') layer = layer.parentElement;
+  if (!layer || layer === document.body) return { filter: null, tint: null };
+  const style = getComputedStyle(layer);
+  return { filter: style.backdropFilter && style.backdropFilter !== 'none' ? style.backdropFilter : null, tint: style.backgroundColor };
+}
+
+// The main process's row, on <html>: the room made at the header's start, the fade, and whether something
+// covers the header (then it doesn't drag the window). Only what differs is written, since each write is
+// a change the page's observers see.
+function applyRow(row, covered) {
+  const root = document.documentElement;
+  if (!root) return;
+  const toggle = (name, on) => {
+    if (root.hasAttribute(name) !== on) root.toggleAttribute(name, on);
+  };
+  const inset = row ? `${row.inset}px` : '';
+  toggle('data-xuna-desktop-row', Boolean(row));
+  if (root.style.getPropertyValue('--xuna-desktop-row-inset') !== inset) {
+    if (row) root.style.setProperty('--xuna-desktop-row-inset', inset);
+    else root.style.removeProperty('--xuna-desktop-row-inset');
+  }
+  toggle('data-xuna-desktop-inactive', Boolean(row?.inactive));
+  toggle('data-xuna-desktop-covered', covered);
+}
 
 // The strip's Ask AI presses XUNA's own, in the header of the tab in front (see src/title-strip.js), so
 // the assistant opens as it does from there. This tells the main process whether the tab's page has
@@ -41,16 +163,7 @@ function watchAskAi() {
     last = serialized;
     ipcRenderer.send('xuna:ask-ai-state', state);
   };
-  // XUNA redraws often; the page is looked at again at most five times a second.
-  let waiting = false;
-  const soon = () => {
-    if (waiting) return;
-    waiting = true;
-    setTimeout(() => {
-      waiting = false;
-      report();
-    }, 200);
-  };
+  const soon = throttled(report);
   window.addEventListener('DOMContentLoaded', () => {
     new MutationObserver(soon).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-pressed', 'disabled'] });
     report();

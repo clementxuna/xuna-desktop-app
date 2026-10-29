@@ -179,6 +179,54 @@ test('the strip runs only its own script file', () => {
   assert.doesNotMatch(stripHtml(), /<script>/); // an inline script would be refused anyway
 });
 
+// src/one-row.css: its rules, comments left out, as [selectors, declarations], each selector on its own.
+const oneRowRules = () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'one-row.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const split = (list) => {
+    const parts = [''];
+    let depth = 0;
+    for (const char of list) {
+      if (char === '(') depth += 1;
+      if (char === ')') depth -= 1;
+      if (char === ',' && depth === 0) parts.push('');
+      else parts[parts.length - 1] += char;
+    }
+    return parts.map((part) => part.trim()).filter(Boolean);
+  };
+  return [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, list, body]) => [split(list), body]);
+};
+const oneRowRule = (selector) => oneRowRules().find(([selectors]) => selectors.includes(selector))?.[1] ?? '';
+
+test("the CSS put in XUNA's page does nothing until the main process turns one row on", () => {
+  const selectors = oneRowRules().flatMap(([list]) => list);
+  assert.ok(selectors.length > 0);
+  for (const selector of selectors) assert.match(selector, /^:root\[data-xuna-desktop-row\]/);
+});
+
+test("in one row XUNA's header moves over by the strip's width, its box with it, and its empty space drags the window", () => {
+  const rule = oneRowRule(':root[data-xuna-desktop-row] [data-xuna-desktop-bar]');
+  assert.match(rule, /margin-inline-start:\s*var\(--xuna-desktop-row-inset, 0px\)\s*!important/);
+  assert.match(rule, /width:\s*calc\(100% - var\(--xuna-desktop-row-inset, 0px\)\)\s*!important/);
+  assert.match(rule, /(^|[\s;])app-region:\s*drag/);
+  assert.match(rule, /-webkit-app-region:\s*drag/);
+});
+
+test("everything that takes clicks in or over XUNA's header stays clickable: its controls, and XUNA's dialogs, menus and toasts", () => {
+  const noDrag = oneRowRules().filter(([, body]) => /(^|[\s;])app-region:\s*no-drag/.test(body)).flatMap(([list]) => list);
+  for (const selector of [
+    ':root[data-xuna-desktop-row] [data-xuna-desktop-bar] > * > *',
+    ':root[data-xuna-desktop-row] body > :not(#root)',
+    ':root[data-xuna-desktop-row] :is([data-sonner-toaster], [data-sonner-toast])',
+    ':root[data-xuna-desktop-row][data-xuna-desktop-covered] [data-xuna-desktop-bar]',
+  ]) {
+    assert.ok(noDrag.includes(selector), selector);
+  }
+});
+
+test("with the window in the background XUNA's header fades, as the strip's controls do", () => {
+  assert.match(oneRowRule(':root[data-xuna-desktop-row][data-xuna-desktop-inactive] [data-xuna-desktop-bar] > *'), /opacity:\s*0\.5/);
+});
+
 test("the workspace panel opens below the + button, its right edge in line with the button's, as wide as XUNA's", () => {
   // The view holds the panel and a transparent margin for its shadow: 12px either side, 4 above, 16 below.
   const anchor = { x: 1240, y: 4, width: 20, height: 20 }; // the + button's rectangle in the strip
