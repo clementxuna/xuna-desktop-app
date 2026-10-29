@@ -15,7 +15,8 @@ const REOPEN_AFTER_MS = 300; // a click on + that closed the panel by taking its
 
 // onChoose(item): a workspace row was picked. onClosed(refocus): the panel closed; refocus is true when
 // the keyboard should go back to XUNA (Escape), false when the user clicked elsewhere or picked.
-function createWorkspacePanel(win, { onChoose, onClosed }) {
+// barBottom(): where the window's bar ends, which the panel opens below.
+function createWorkspacePanel(win, { onChoose, onClosed, barBottom = () => 0 }) {
   let view = null;
   let ready = false;
   let open = false;
@@ -27,7 +28,7 @@ function createWorkspacePanel(win, { onChoose, onClosed }) {
   const place = () => {
     if (!view || !anchor || win.isDestroyed()) return;
     const [width, contentHeight] = win.getContentSize();
-    view.setBounds(pickerPanelBounds({ anchor, width, height: contentHeight, panelHeight: height }));
+    view.setBounds(pickerPanelBounds({ anchor, width, height: contentHeight, panelHeight: height, barBottom: barBottom() }));
   };
 
   const show = (fresh) => {

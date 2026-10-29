@@ -5,11 +5,11 @@ const path = require('node:path');
 const { app, BrowserWindow, Menu, Notification, WebContentsView, dialog, ipcMain, nativeTheme, powerMonitor, pushNotifications, screen, session, shell, webContents } = require('electron');
 const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
-const { buildAppMenu, attachContextMenu } = require('./menus');
+const { buildAppMenu, attachContextMenu, tabMenuTemplate } = require('./menus');
 const { createUpdates } = require('./updates');
-const { MAC_TRAFFIC_LIGHTS, titleBarColor, macAppViewBounds, askAiState } = require('./title-bar');
+const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macWindowLayout, headerReport, clusterReport, askAiState } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
-const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
+const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, moveTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
 const { ACTIVE_WORKSPACE_KEY, TAB_KEY_PREFIXES, readMemory, applyWrite, workspaceOf, seedFor, createIsolationGuard, memoryForPage } = require('./workspace-memory');
 const { parseBootstrap, pickerItems, markOpenTabs } = require('./workspace-picker');
 const { createWorkspacePanel } = require('./workspace-panel');
@@ -30,6 +30,10 @@ const XUNA_PAGE_PREFERENCES = {
   spellcheck: true,
   preload: path.join(__dirname, 'preload.js'),
 };
+// With workspace tabs the window's own page stays empty, under the title strip's view and the XUNA pages'.
+const WINDOW_PAGE_PREFERENCES = { contextIsolation: true, sandbox: true, nodeIntegration: false };
+// What makes room in XUNA's header for the strip in one row, put into each tab's page (see src/one-row.css).
+const ONE_ROW_CSS = fs.readFileSync(path.join(__dirname, 'one-row.css'), 'utf8');
 
 // Development runs get their own profile, so they neither trip an installed copy's single-instance lock nor share its sign-in.
 if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} Dev`));
@@ -40,7 +44,7 @@ if (IS_WINDOWS) app.setAppUserModelId(config.APP_ID);
 let mainWindow = null;
 let titleBar = null; // XUNA's black or white for the title bars: Windows' own, and the strip on Mac
 let pushRegistration = Promise.resolve(null); // where XUNA's servers send this Mac's push notifications (macOS only)
-// On Mac the XUNA pages are views below the title strip, one per workspace tab (see addWorkspaceTabs);
+// On Mac the XUNA pages are views under the title strip's, one per workspace tab (see addWorkspaceTabs);
 // elsewhere the window's own page shows XUNA.
 const workspaceTabs = new WeakMap(); // Mac main window → its workspace tabs
 const pageColors = new WeakMap(); // XUNA page → the title bar colour for the theme it last reported
@@ -78,13 +82,13 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
     ipcMain.on('xuna:page-appearance', onPageAppearance);
-    ipcMain.on('xuna:workspace-tab-request', onWorkspaceTabRequest);
     ipcMain.on('xuna:workspace-memory', onWorkspaceMemoryRequest);
     ipcMain.on('xuna:workspace-memory-init', (event, values) => fromTabPage(event, (tabs, id) => tabs.adopt(id, values)));
     ipcMain.on('xuna:workspace-memory-write', onWorkspaceMemoryWrite);
     ipcMain.on('xuna:workspace-memory-read', (event) => fromTabPage(event, () => isolationGuard.pageRead(event.sender.id)));
     ipcMain.on('xuna:workspace-list', onWorkspaceList);
     ipcMain.on('xuna:ask-ai-state', (event, report) => fromTabPage(event, (tabs, id) => tabs.setAskAi(id, report)));
+    ipcMain.on('xuna:title-bar-header', (event, report) => fromTabPage(event, (tabs, id) => tabs.setHeader(id, report)));
     guardSession(session.defaultSession);
     if (USE_TABS) {
       removeOldTabProfiles();
@@ -245,12 +249,6 @@ function createMainWindow() {
   const workAreas = screen.getAllDisplays().map((display) => display.workArea);
   const { bounds, maximized } = chooseBounds(readState(stateFile), workAreas, { width: 1280, height: 820 });
 
-  const stripPreferences = {
-    contextIsolation: true,
-    sandbox: true,
-    nodeIntegration: false,
-    preload: path.join(__dirname, 'title-strip-preload.js'),
-  };
   const win = new BrowserWindow({
     ...bounds,
     minWidth: 400,
@@ -260,8 +258,8 @@ function createMainWindow() {
     ...titleBarOptions(),
     ...(IS_MAC ? { titleBarStyle: 'hidden', trafficLightPosition: MAC_TRAFFIC_LIGHTS } : {}),
     autoHideMenuBar: true,
-    // On Mac the window's own page is the title strip, with the workspace tab buttons; XUNA gets views below it.
-    webPreferences: USE_TABS ? stripPreferences : XUNA_PAGE_PREFERENCES,
+    // With workspace tabs the title strip and the XUNA pages are views over the window's own page.
+    webPreferences: USE_TABS ? WINDOW_PAGE_PREFERENCES : XUNA_PAGE_PREFERENCES,
   });
   if (USE_TABS) addWorkspaceTabs(win, XUNA_PAGE_PREFERENCES);
   else showXuna(win.webContents);
@@ -308,11 +306,13 @@ function showXuna(contents) {
 }
 
 // macOS draws its title bar in its own grey, whatever theme XUNA shows. So on Mac the window hides it,
-// keeping the three buttons, over a strip in XUNA's black or white: the window's background, which
-// setTitleBarColor keeps in step with the page shown. src/title-strip.html, the window's own page, makes
-// the strip drag the window and draws the workspace tab buttons at its right end.
+// keeping the three buttons over a bar in XUNA's own colours, drawn by src/title-strip.html in a view
+// above the XUNA pages. Where the tab in front shows XUNA's header, that header is the bar, in one row:
+// the page fills the window, and the strip's view covers only the bar's left end, with Back and Forward,
+// the workspace tabs and +. Elsewhere the strip runs above the page, in XUNA's black or white (see
+// macWindowLayout in src/title-bar.js).
 //
-// Each workspace tab is a XUNA page in a view below the strip. The tabs share one sign-in, and each keeps
+// Each workspace tab is a XUNA page in a view of its own. The tabs share one sign-in, and each keeps
 // its own workspace (see src/workspace-memory.js). Only the shown tab's view is visible; the others keep
 // running, so a call or a draft carries on while another workspace is in front. The tabs, their names,
 // their workspaces and the one shown are saved, and the window opens with them again. The + button opens
@@ -324,23 +324,77 @@ function addWorkspaceTabs(win, webPreferences) {
   const closingTabs = new Set(); // tabs being closed, whose page is deciding whether it may go
   const askAi = new Map(); // tab id → what its page says about XUNA's Ask AI (askAiState in src/title-bar.js)
   let closingWindow = false; // the window is closing its pages, one at a time
+  const headers = new Map(); // tab id → XUNA's header, as its page reports it (headerReport in src/title-bar.js)
+  let cluster = null; // the room the bar's left end needs in one row, as the strip measures it (clusterReport)
+  let bar = null; // where everything goes (macWindowLayout in src/title-bar.js)
+  let lightsAt = MAC_TRAFFIC_LIGHTS; // where the three buttons are
+  const rowsSent = new WeakMap(); // XUNA page → what it was last told about the room in its header (see sendRows)
+
+  // The title strip, in a view kept above the tabs' pages. Its page talks only to this window's tabs.
+  const strip = new WebContentsView({
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, preload: path.join(__dirname, 'title-strip-preload.js') },
+  });
+  strip.setBackgroundColor('#00000000'); // the window's colour shows through until the strip is told the bar's
+  win.contentView.addChildView(strip);
+  const stripPage = strip.webContents;
 
   const pageOf = (id) => {
     const entry = views.get(id);
     return entry && !entry.page.isDestroyed() ? entry.page : null;
   };
 
-  const layout = () => {
+  // Places the views for the tab in front (macWindowLayout in src/title-bar.js), moves the three buttons
+  // with the bar, and tells each tab's page the room made in its header. True when the bar's mode or
+  // height changed, which the strip then has to be told.
+  const arrange = () => {
+    if (win.isDestroyed()) return false;
     const [width, height] = win.getContentSize();
-    const bounds = macAppViewBounds({ width, height, fullScreen: win.isFullScreen(), tabCount: state.tabs.length });
-    for (const { view } of views.values()) view.setBounds(bounds);
+    const before = bar;
+    bar = macWindowLayout({ width, height, fullScreen: win.isFullScreen(), tabCount: state.tabs.length, header: headers.get(state.active) ?? null, cluster });
+    for (const { view } of views.values()) view.setBounds(bar.page);
+    if (bar.strip) strip.setBounds(bar.strip);
+    strip.setVisible(Boolean(bar.strip));
+    if (IS_MAC && (bar.trafficLights.x !== lightsAt.x || bar.trafficLights.y !== lightsAt.y)) {
+      lightsAt = bar.trafficLights;
+      win.setWindowButtonPosition(lightsAt);
+    }
+    sendRows();
+    return before?.mode !== bar.mode || before?.barHeight !== bar.barHeight;
+  };
+
+  // Each tab's page applies the room made in XUNA's header for the strip, and the fade while the window
+  // is in the background (see watchHeader in src/preload.js). A page hears again only when that changes,
+  // or once it has loaded afresh.
+  const sendRows = () => {
+    const row = bar?.mode === 'one-row' ? { inset: bar.inset, inactive: !win.isFocused() } : null;
+    const word = JSON.stringify(row);
+    for (const { page } of views.values()) {
+      if (page.isDestroyed() || rowsSent.get(page) === word) continue;
+      rowsSent.set(page, word);
+      page.send('xuna:title-bar-row', row);
+    }
   };
 
   const sendToStrip = () => {
-    win.webContents.send('xuna:workspace-tabs', {
+    if (stripPage.isDestroyed()) return;
+    const page = pageOf(state.active);
+    const header = headers.get(state.active);
+    const oneRow = bar?.mode === 'one-row';
+    stripPage.send('xuna:workspace-tabs', {
       tabs: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
       dark: titleBar === config.BACKGROUND.dark,
       askAi: askAiState(askAi.get(state.active)),
+      // In one row the bar is XUNA's header: it takes the header's colours, and looks covered when the page is.
+      bar: {
+        mode: oneRow ? 'one-row' : 'strip',
+        height: bar?.barHeight ?? MAC_TITLE_STRIP_HEIGHT,
+        background: (oneRow && header?.background) || titleBar || backgroundColor(),
+        border: (oneRow && header?.border) || null,
+        lights: IS_MAC,
+        cover: (oneRow && header?.cover) || null,
+      },
+      history: { back: Boolean(page?.navigationHistory.canGoBack()), forward: Boolean(page?.navigationHistory.canGoForward()) },
+      focused: win.isFocused(),
     });
   };
 
@@ -348,7 +402,7 @@ function addWorkspaceTabs(win, webPreferences) {
   // in front, so pressing it in a sign-in pop-up never closes the tab behind.
   const menu = () => ({
     list: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
-    pick: () => win.webContents.send('xuna:workspace-picker-open'), // the strip opens it under its + button
+    pick: () => stripPage.send('xuna:workspace-picker-open'), // the strip opens it under its + button
     close: () => {
       if (BrowserWindow.getFocusedWindow() === win) tabs.close(state.active);
     },
@@ -362,7 +416,7 @@ function addWorkspaceTabs(win, webPreferences) {
   const refresh = () => {
     if (win.isDestroyed()) return;
     for (const [id, { view }] of views) view.setVisible(id === state.active);
-    layout();
+    arrange();
     const page = pageOf(state.active);
     if (page) {
       win.setTitle(page.getTitle() || 'XUNA AI');
@@ -383,14 +437,27 @@ function addWorkspaceTabs(win, webPreferences) {
     pageOf(state.active)?.focus();
   };
 
-  // Opens a tab's XUNA page in a hidden view below the strip. Every tab shares the one sign-in.
+  // Opens a tab's XUNA page in a hidden view, under the strip's. Every tab shares the one sign-in.
   const openPage = (id) => {
     const view = new WebContentsView({ webPreferences });
     const page = view.webContents;
     view.setBackgroundColor(backgroundColor());
     view.setVisible(false);
     win.contentView.addChildView(view);
+    win.contentView.addChildView(strip); // again, which keeps the strip above every tab's page
     views.set(id, { view, page });
+    // In one row XUNA's header makes room for the strip (src/one-row.css), once its page is told how much.
+    page.on('dom-ready', () => {
+      page.insertCSS(ONE_ROW_CSS).catch(() => {});
+      rowsSent.delete(page);
+      sendRows();
+    });
+    // Back and Forward follow the page in front.
+    const onNavigated = () => {
+      if (pageOf(state.active) === page) sendToStrip();
+    };
+    page.on('did-navigate', onNavigated);
+    page.on('did-navigate-in-page', onNavigated);
     // The window takes the shown page's title, as it did when the page was its own (the Window menu shows it).
     page.on('page-title-updated', (_event, title) => {
       if (pageOf(state.active) === page) win.setTitle(title);
@@ -404,6 +471,7 @@ function addWorkspaceTabs(win, webPreferences) {
   const onPageClosed = (id, view) => {
     if (views.get(id)?.view === view) views.delete(id);
     askAi.delete(id);
+    headers.delete(id);
     if (win.isDestroyed()) return;
     win.contentView.removeChildView(view);
     if (closingTabs.delete(id)) {
@@ -443,6 +511,7 @@ function addWorkspaceTabs(win, webPreferences) {
     onClosed: (refocus) => {
       if (refocus) pageOf(state.active)?.focus();
     },
+    barBottom: () => bar?.barBottom ?? 0, // it opens below the bar
   });
 
   // A tab's page wrote to its workspace memory: the tab takes its workspace's name.
@@ -504,8 +573,47 @@ function addWorkspaceTabs(win, webPreferences) {
       page.send('xuna:ask-ai-toggle');
       page.focus();
     },
-    closeOthers: () => {
-      for (const tab of state.tabs) if (tab.id !== state.active) tabs.close(tab.id);
+    // What a tab's page says about XUNA's header (see watchHeader in src/preload.js).
+    setHeader: (id, report) => {
+      headers.set(id, headerReport(report));
+      if (id !== state.active) return;
+      arrange();
+      sendToStrip();
+    },
+    // The strip's measure of the bar's left end in one row (see measure in src/title-strip.js).
+    measure: (widths) => {
+      const next = clusterReport(widths);
+      if (JSON.stringify(next) === JSON.stringify(cluster)) return;
+      cluster = next;
+      if (arrange()) sendToStrip();
+    },
+    back: () => {
+      const page = pageOf(state.active);
+      if (page?.navigationHistory.canGoBack()) page.navigationHistory.goBack();
+      page?.focus();
+    },
+    forward: () => {
+      const page = pageOf(state.active);
+      if (page?.navigationHistory.canGoForward()) page.navigationHistory.goForward();
+      page?.focus();
+    },
+    // A tab right-clicked in the strip (tabMenuTemplate in src/menus.js).
+    tabMenu: (id) => {
+      if (!state.tabs.some((tab) => tab.id === id)) return;
+      const template = tabMenuTemplate({ count: state.tabs.length, rename: () => tabs.startRename(id), close: () => tabs.close(id), closeOthers: () => tabs.closeOthers(id) });
+      Menu.buildFromTemplate(template).popup({ window: win });
+    },
+    // A tab dragged to a new place. A drop that changes nothing redraws the strip, which waits to hear.
+    move: (id, index) => {
+      const next = moveTab(state, id, index);
+      if (next === state) return sendToStrip();
+      state = next;
+      refresh();
+    },
+    // Every tab but keep: the one shown, unless another is named, which is then shown.
+    closeOthers: (keep = state.active) => {
+      if (keep !== state.active) tabs.select(keep);
+      for (const tab of state.tabs) if (tab.id !== keep) tabs.close(tab.id);
     },
     // The page decides first, as it would if the window closed (see will-prevent-unload).
     close: (id) => {
@@ -521,11 +629,12 @@ function addWorkspaceTabs(win, webPreferences) {
       pageOf(state.active)?.focus();
     },
     // While a tab's name is typed the keys go to the strip; afterwards, back to XUNA.
-    editing: (active) => (active ? win.webContents : pageOf(state.active))?.focus(),
-    startRename: () => {
-      if (state.tabs.length < 2) return; // with one tab the strip shows no tab to rename
-      win.webContents.focus();
-      win.webContents.send('xuna:workspace-tab-rename', state.active);
+    editing: (active) => (active ? stripPage : pageOf(state.active))?.focus(),
+    // The tab shown, unless another is named (from its own menu).
+    startRename: (id = state.active) => {
+      if (state.tabs.length < 2 || !state.tabs.some((tab) => tab.id === id)) return; // with one tab the strip shows no tab to rename
+      stripPage.focus();
+      stripPage.send('xuna:workspace-tab-rename', id);
     },
     // A page asking "Leave this page?" is shown first.
     reveal: (contents) => {
@@ -544,16 +653,44 @@ function addWorkspaceTabs(win, webPreferences) {
   };
   workspaceTabs.set(win, tabs);
 
+  // What the strip's buttons ask for (src/title-strip.js). Only this window's own strip is heard.
+  stripPage.ipc.on('xuna:workspace-tab-request', (_event, request) => {
+    if (typeof request?.type !== 'string') return;
+    if (request.type === 'select') tabs.select(request.id);
+    else if (request.type === 'add') tabs.pick(anchorOf(request.anchor));
+    else if (request.type === 'close') tabs.close(request.id);
+    else if (request.type === 'rename') tabs.rename(request.id, request.name);
+    else if (request.type === 'editing') tabs.editing(request.active === true);
+    else if (request.type === 'ask-ai') tabs.askAi();
+    else if (request.type === 'back') tabs.back();
+    else if (request.type === 'forward') tabs.forward();
+    else if (request.type === 'measure') tabs.measure(request.widths);
+    else if (request.type === 'tab-menu') tabs.tabMenu(request.id);
+    else if (request.type === 'move') tabs.move(request.id, request.index);
+  });
+
   for (const tab of state.tabs) openPage(tab.id);
   for (const event of ['resize', 'enter-full-screen', 'leave-full-screen']) {
     win.on(event, () => {
-      layout();
+      if (arrange()) sendToStrip();
       panel.close();
     });
   }
-  win.on('focus', () => pageOf(state.active)?.focus()); // typing goes to XUNA, not the strip
+  // The bar fades while the window is in the background. Typing goes to XUNA, not the strip.
+  win.on('focus', () => {
+    pageOf(state.active)?.focus();
+    sendRows();
+    sendToStrip();
+  });
+  win.on('blur', () => {
+    sendRows();
+    sendToStrip();
+  });
   win.on('page-title-updated', (event) => event.preventDefault());
-  win.webContents.on('did-finish-load', sendToStrip);
+  stripPage.on('did-finish-load', sendToStrip);
+  win.once('closed', () => {
+    if (!stripPage.isDestroyed()) stripPage.close(); // on Mac the app stays open after its window closes
+  });
   win.on('close', (event) => {
     if (![...views.keys()].some(pageOf)) return;
     event.preventDefault();
@@ -561,21 +698,8 @@ function addWorkspaceTabs(win, webPreferences) {
     closeNextPage();
   });
 
-  win.loadFile(path.join(__dirname, 'title-strip.html')).catch(() => {});
+  stripPage.loadFile(path.join(__dirname, 'title-strip.html')).catch(() => {});
   refresh();
-}
-
-// Clicks on the title strip's tab buttons (src/title-strip.js). Only a Mac main window's own strip is heard.
-function onWorkspaceTabRequest(event, request) {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  const tabs = win && win.webContents === event.sender ? workspaceTabs.get(win) : null;
-  if (!tabs || typeof request?.type !== 'string') return;
-  if (request.type === 'select') tabs.select(request.id);
-  else if (request.type === 'add') tabs.pick(anchorOf(request.anchor));
-  else if (request.type === 'close') tabs.close(request.id);
-  else if (request.type === 'rename') tabs.rename(request.id, request.name);
-  else if (request.type === 'editing') tabs.editing(request.active === true);
-  else if (request.type === 'ask-ai') tabs.askAi();
 }
 
 // The + button's rectangle as the strip measured it, or null.
