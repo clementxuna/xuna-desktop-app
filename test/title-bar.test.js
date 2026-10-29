@@ -150,26 +150,47 @@ test("the strip's measure of its tabs is taken only when it makes sense", () => 
 });
 
 const stripHtml = () => fs.readFileSync(path.join(__dirname, '..', 'src', 'title-strip.html'), 'utf8');
-const cssRule = (html, selector) => html.match(new RegExp(`(?:^|\\s)${selector.replaceAll('.', '\\.')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const cssRule = (html, selector) => html.match(new RegExp(`(?:^|\\s)${escapeRegExp(selector)}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
 
-test("the strip's drag area is exactly the strip", () => {
+test("the strip's drag area is exactly the strip, 40px tall until the main process sets the bar's height", () => {
   const strip = cssRule(stripHtml(), '.strip');
-  assert.match(strip, new RegExp(`height:\\s*${MAC_TITLE_STRIP_HEIGHT}px`));
+  assert.match(strip, /height:\s*var\(--bar-height\)/);
+  assert.match(cssRule(stripHtml(), ':root'), new RegExp(`--bar-height:\\s*${MAC_TITLE_STRIP_HEIGHT}px`));
   assert.match(strip, /(^|[\s;])app-region:\s*drag/);
 });
 
-test("the strip's buttons take clicks instead of dragging the window", () => {
-  const buttons = cssRule(stripHtml(), '.tab, .add, .ask-ai');
+test("the strip's buttons take clicks instead of dragging the window, Back and Forward among them", () => {
+  const buttons = cssRule(stripHtml(), '.tab, .add, .ask-ai, .history button');
   assert.match(buttons, /(^|[\s;])app-region:\s*no-drag/);
   assert.match(buttons, /-webkit-app-region:\s*no-drag/);
 });
 
-test("the strip lets the window's colour through, so it matches XUNA's header exactly", () => {
+test("until it is told the bar's colour, the strip lets the window's colour through, so it matches XUNA's header exactly", () => {
   // A colour scheme on the strip makes Chromium paint its own grey (#121212) over the window's black.
   const style = stripHtml().match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
   assert.doesNotMatch(style, /color-scheme\s*:/);
   assert.match(cssRule(stripHtml(), 'html, body'), /background:\s*transparent/);
+  assert.match(cssRule(stripHtml(), ':root'), /--bar-background:\s*transparent/);
+  assert.match(cssRule(stripHtml(), '.strip'), /background:\s*var\(--bar-background\)/);
   assert.doesNotMatch(stripHtml(), /<meta name="color-scheme"/);
+});
+
+test("in one row the strip's controls sit at its left, against XUNA's header, and its Ask AI goes, XUNA's own being in the same row", () => {
+  assert.match(cssRule(stripHtml(), ':root[data-mode="one-row"] .history'), /margin-inline-end:\s*0/);
+  assert.match(cssRule(stripHtml(), '.history'), /margin-inline-end:\s*auto/); // in the strip, the tabs stay at its right end
+  assert.match(cssRule(stripHtml(), ':root[data-mode="one-row"] .ask-ai'), /display:\s*none/);
+});
+
+test("with the window in the background the strip's controls fade, as macOS's own toolbars do", () => {
+  assert.match(cssRule(stripHtml(), ':root[data-inactive] .strip > *'), /opacity:\s*0\.5/);
+});
+
+test("while something covers XUNA's page, a dialog's backdrop say, the strip looks covered as well and takes no clicks", () => {
+  const controls = cssRule(stripHtml(), ':root[data-covered] .strip > *');
+  assert.match(controls, /filter:\s*var\(--cover-filter, none\)/);
+  assert.match(controls, /pointer-events:\s*none/);
+  assert.match(cssRule(stripHtml(), ':root[data-covered] .strip::after'), /background:\s*var\(--cover-tint, transparent\)/);
 });
 
 test('the strip runs only its own script file', () => {

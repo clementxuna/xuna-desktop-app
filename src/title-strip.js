@@ -1,29 +1,82 @@
 'use strict';
 
-// Draws the workspace tab buttons at the right end of the Mac title strip (src/title-strip.html) from
-// what the main process sends (see addWorkspaceTabs in src/main.js), and passes their clicks back
-// through src/title-strip-preload.js. With one tab open only the + button shows; it opens a menu of the
-// account's workspaces, below it. Double-clicking a tab renames it. Ask AI, at the far right, presses
-// XUNA's own Ask AI in the tab in front, and is drawn as XUNA draws it.
+// Draws the Mac title strip (src/title-strip.html) from what the main process sends (see
+// addWorkspaceTabs in src/main.js), and passes its clicks back through src/title-strip-preload.js: Back
+// and Forward, the workspace tabs, the + button and, in the strip, Ask AI. With one tab open no tabs show;
+// + opens a menu of the account's workspaces, below it. Clicking a tab shows it, double-clicking renames
+// it, right-clicking opens its menu and dragging moves it. Ask AI presses XUNA's own in the tab in front,
+// and is drawn as XUNA draws it.
 
 const bridge = window.workspaceTabs;
+const layout = window.titleStripLayout;
+const root = document.documentElement;
 const list = document.querySelector('.tabs');
+const history = document.querySelector('.history');
+const backButton = document.querySelector('.back');
+const forwardButton = document.querySelector('.forward');
 const addButton = document.querySelector('.add');
 const askButton = document.querySelector('.ask-ai');
 const orb = document.querySelector('.orb');
-let current = { tabs: [], dark: false, askAi: { available: false, open: false, colors: null } };
+const measurer = document.querySelector('.measure');
+let current = {
+  tabs: [],
+  dark: false,
+  askAi: { available: false, open: false, colors: null },
+  bar: { mode: 'strip', lights: true },
+  history: { back: false, forward: false },
+  focused: true,
+};
 let renaming = null; // the tab whose name is being typed; it is redrawn once that ends
+let dragging = null; // the tab being dragged along the strip; the tabs are redrawn once it is let go
+let clicksIgnoredUntil = 0; // the click that ends a drag doesn't also show the tab
+let measured = '';
 
 bridge.onChange((state) => {
   current = state;
-  document.documentElement.dataset.theme = state.dark ? 'dark' : 'light';
+  root.dataset.theme = state.dark ? 'dark' : 'light';
+  showBar(state.bar, state.focused);
+  showHistory(state.history, state.bar);
   showAskAi(state.askAi);
-  if (!renaming) render();
+  if (!renaming && !dragging) render();
+  measure();
 });
 bridge.onRename(startRename);
 bridge.onPick(pick); // ⌘T
 addButton.addEventListener('click', pick);
 askButton.addEventListener('click', () => bridge.askAi());
+backButton.addEventListener('click', () => bridge.back());
+forwardButton.addEventListener('click', () => bridge.forward());
+document.fonts?.addEventListener('loadingdone', measure); // Inter arriving changes the tabs' widths
+
+// bar: the mode, height and colours the main process chose (see macWindowLayout in src/title-bar.js),
+// whether the window has macOS's three buttons, and how anything covering XUNA's page looks. focused:
+// whether the window is in front.
+function showBar(bar = {}, focused = true) {
+  const mode = bar.mode === 'one-row' ? 'one-row' : 'strip';
+  root.dataset.mode = mode;
+  setVariable('--lights', `${layout.lightsZone({ lights: bar.lights !== false, mode })}px`);
+  setVariable('--bar-height', Number.isFinite(bar.height) ? `${bar.height}px` : null);
+  setVariable('--bar-background', bar.background);
+  setVariable('--bar-border', bar.border);
+  setVariable('--cover-filter', bar.cover?.filter);
+  setVariable('--cover-tint', bar.cover?.tint);
+  root.toggleAttribute('data-covered', Boolean(bar.cover));
+  root.toggleAttribute('data-inactive', focused === false);
+}
+
+function setVariable(name, value) {
+  if (value) root.style.setProperty(name, value);
+  else root.style.removeProperty(name);
+}
+
+// Back and Forward act in the tab in front, and are dimmed while there is nowhere to go.
+function showHistory({ back = false, forward = false } = {}, bar = {}) {
+  const mac = bar.lights !== false;
+  backButton.disabled = !back;
+  forwardButton.disabled = !forward;
+  backButton.title = mac ? 'Back (⌘[)' : 'Back (Alt+Left)';
+  forwardButton.title = mac ? 'Forward (⌘])' : 'Forward (Alt+Right)';
+}
 
 // askAi: what the tab in front says about XUNA's own Ask AI (askAiState in src/title-bar.js). Without
 // one to press, as on the sign-in page, the button waits, dimmed.
@@ -45,11 +98,31 @@ function pick() {
   bridge.add({ x, y, width, height });
 }
 
-function render() {
-  list.replaceChildren(...(current.tabs.length > 1 ? current.tabs.map(tabButtons) : []));
+// The bar's left end in one row, at full width and at its narrowest (clusterWidths), by which the main
+// process chooses between one row and the strip. It is measured the same way in either mode, so the
+// choice never changes what it was made on.
+function measure() {
+  const tabNaturals = [...measurer.children].map((item) => item.getBoundingClientRect().width);
+  const widths = layout.clusterWidths({
+    lights: current.bar?.lights !== false,
+    history: history.getBoundingClientRect().width,
+    add: addButton.getBoundingClientRect().width,
+    tabNaturals,
+  });
+  const serialized = JSON.stringify(widths);
+  if (serialized === measured) return;
+  measured = serialized;
+  bridge.measure(widths);
 }
 
-function tabButtons(tab) {
+function render() {
+  const shown = current.tabs.length > 1 ? current.tabs : [];
+  list.replaceChildren(...shown.map((tab) => tabButtons(tab, true)));
+  measurer.replaceChildren(...shown.map((tab) => tabButtons(tab, false)));
+}
+
+// A tab's buttons: its name, which shows it, and its close button. live: false for the measurer's copy.
+function tabButtons(tab, live) {
   const item = document.createElement('div');
   item.className = tab.active ? 'tab active' : 'tab';
   item.dataset.id = tab.id;
@@ -61,8 +134,6 @@ function tabButtons(tab) {
   select.ariaSelected = String(tab.active);
   select.title = tab.label;
   select.textContent = tab.label;
-  select.addEventListener('click', () => bridge.select(tab.id));
-  select.addEventListener('dblclick', () => startRename(tab.id));
 
   const close = document.createElement('button');
   close.className = 'close';
@@ -70,9 +141,19 @@ function tabButtons(tab) {
   close.title = `Close ${tab.label}`;
   close.ariaLabel = `Close ${tab.label}`;
   close.append(crossIcon());
-  close.addEventListener('click', () => bridge.close(tab.id));
 
   item.append(select, close);
+  if (!live) return item;
+  select.addEventListener('click', () => {
+    if (Date.now() >= clicksIgnoredUntil) bridge.select(tab.id);
+  });
+  select.addEventListener('dblclick', () => startRename(tab.id));
+  select.addEventListener('pointerdown', (event) => startDrag(event, tab.id, item));
+  close.addEventListener('click', () => bridge.close(tab.id));
+  item.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    bridge.tabMenu(tab.id);
+  });
   return item;
 }
 
@@ -89,6 +170,50 @@ function crossIcon() {
   path.setAttribute('stroke-linecap', 'round');
   svg.append(path);
   return svg;
+}
+
+// Dragging a tab along the strip: it follows the pointer, the tabs it passes move aside, and where it is
+// let go it moves to (see moveTab in src/workspace-tabs.js). A press that barely moves is a click.
+function startDrag(event, id, item) {
+  if (event.button !== 0 || renaming) return;
+  const items = [...list.children];
+  const centers = items.map((element) => {
+    const box = element.getBoundingClientRect();
+    return box.left + box.width / 2;
+  });
+  const from = items.indexOf(item);
+  dragging = { id, item, items, from, to: from, centers, startX: event.clientX, width: item.getBoundingClientRect().width, moved: false };
+  item.setPointerCapture(event.pointerId);
+  item.addEventListener('pointermove', dragMove);
+  item.addEventListener('pointerup', dragEnd);
+  item.addEventListener('pointercancel', dragEnd);
+}
+
+function dragMove(event) {
+  if (!dragging) return;
+  const dx = event.clientX - dragging.startX;
+  if (!dragging.moved && Math.abs(dx) < 4) return;
+  dragging.moved = true;
+  dragging.item.classList.add('dragging');
+  dragging.item.style.transform = `translateX(${dx}px)`;
+  dragging.to = layout.dropIndex({ centers: dragging.centers, from: dragging.from, x: dragging.centers[dragging.from] + dx });
+  const shifts = layout.dragShifts({ count: dragging.items.length, from: dragging.from, to: dragging.to, width: dragging.width });
+  dragging.items.forEach((element, index) => {
+    if (element !== dragging.item) element.style.transform = shifts[index] ? `translateX(${shifts[index]}px)` : '';
+  });
+}
+
+function dragEnd() {
+  const ended = dragging;
+  dragging = null;
+  if (!ended) return;
+  ended.item.removeEventListener('pointermove', dragMove);
+  ended.item.removeEventListener('pointerup', dragEnd);
+  ended.item.removeEventListener('pointercancel', dragEnd);
+  if (!ended.moved) return; // a click, which the tab's name handles
+  clicksIgnoredUntil = Date.now() + 100;
+  if (ended.to !== ended.from) bridge.move(ended.id, ended.to); // the tabs come back in their new order
+  else render();
 }
 
 // Swaps the tab's name for a text field. Enter or clicking away keeps what was typed (an empty name

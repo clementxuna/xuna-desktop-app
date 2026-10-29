@@ -4,17 +4,21 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
   <title>XUNA AI</title>
-  <!-- The strip above the XUNA pages on Mac, behind the window's three buttons. Its colour is the
-       window's background, which src/main.js sets to XUNA's black or white, and it drags the window,
-       as macOS's own title bar would. Its right end holds the workspace tab buttons, the + button
-       and Ask AI, drawn by src/title-strip.js; they take clicks instead. Its height is
-       MAC_TITLE_STRIP_HEIGHT in src/title-bar.js, and the three buttons sit in its middle
-       (MAC_TRAFFIC_LIGHTS), level with the tabs. Its type is XUNA's Inter, from where app.xuna.ai
-       gets it; offline, the system font stands in.
+  <!-- The bar along the top of a Mac window, behind macOS's three buttons, drawn by src/title-strip.js
+       in a view of its own above the XUNA pages (see addWorkspaceTabs in src/main.js). It drags the
+       window, as macOS's own title bar would; its buttons take clicks instead.
 
-       The strip declares no colour scheme. Chromium paints a page whose root is in a dark colour
-       scheme with its own grey, #121212, instead of letting the window's colour show through, and
-       the strip then stands out as a grey bar above XUNA's black header. -->
+       It has two modes (macWindowLayout in src/title-bar.js). As the strip, it runs the window's width
+       above the XUNA page, 40px tall (MAC_TITLE_STRIP_HEIGHT), with Back and Forward after the three
+       buttons and the workspace tabs, + and Ask AI at its right end. In one row, XUNA's own header is
+       the title bar and this view covers only its left end, at the header's height and in its colours:
+       the three buttons, Back and Forward, the tabs and +, with XUNA's header carrying on from there.
+       The main process sets the height and colours; until then it lets the window's colour through.
+       Its type is XUNA's Inter, from where app.xuna.ai gets it; offline, the system font stands in.
+
+       The page declares no colour scheme. Chromium paints a page whose root is in a dark colour scheme
+       with its own grey, #121212, instead of letting the window's colour show through, and the strip
+       then stands out as a grey bar above XUNA's black header. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&display=swap">
   <style>
     :root {
@@ -28,6 +32,11 @@
       --button-hover: #ffffff;
       --button-edge: #e9eaeb;
       --button-text: #181d27;
+      /* The bar's height and colours, and where the controls start, as the main process sets them. */
+      --bar-height: 40px;
+      --bar-background: transparent;
+      --bar-border: transparent;
+      --lights: 90px;
     }
     :root[data-theme="dark"] {
       --text: #fafafa;
@@ -41,27 +50,46 @@
       --button-text: #f7f7f7;
     }
     html, body { margin: 0; background: transparent; }
-    .strip { position: fixed; top: 0; left: 0; right: 0; height: 40px; app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 8px 0 90px; box-sizing: border-box; font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: var(--text); user-select: none; }
+    .strip { position: fixed; top: 0; left: 0; right: 0; height: var(--bar-height); app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 var(--lights); box-sizing: border-box; background: var(--bar-background); box-shadow: inset 0 -1px var(--bar-border); font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: var(--text); user-select: none; }
+    .strip > * { transition: opacity 150ms ease; }
+    .history { display: flex; flex: none; gap: 2px; margin-inline-end: auto; }
     .tabs { display: flex; gap: 2px; min-width: 0; }
-    .tab, .add, .ask-ai { app-region: no-drag; -webkit-app-region: no-drag; }
-    .tab { display: flex; align-items: center; flex: 0 1 auto; min-width: 48px; max-width: 176px; height: 28px; border-radius: 6px; color: var(--muted); }
+    .tab, .add, .ask-ai, .history button { app-region: no-drag; -webkit-app-region: no-drag; }
+    .tab { display: flex; align-items: center; flex: 0 1 auto; min-width: 48px; max-width: 176px; height: 28px; border-radius: 6px; color: var(--muted); transition: transform 150ms ease; }
     .tab:hover { background: var(--hover); color: var(--text); }
     .tab.active { background: var(--selected); color: var(--text); }
+    .tab.dragging { position: relative; z-index: 1; transition: none; }
     button, input { margin: 0; border: 0; background: none; color: inherit; font: inherit; }
     button { cursor: default; }
     button:focus-visible, input:focus { outline: 1px solid var(--ring); outline-offset: -1px; }
     .select { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 2px 0 10px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-    .close, .add { display: grid; place-items: center; flex: none; padding: 0; color: var(--muted); }
+    .close, .add, .history button { display: grid; place-items: center; flex: none; padding: 0; color: var(--muted); }
     .close { width: 18px; height: 18px; margin: 0 4px 0 2px; border-radius: 4px; visibility: hidden; }
     .tab:hover .close, .tab.active .close, .close:focus-visible { visibility: visible; }
     .close:hover { background: var(--hover); color: var(--text); }
-    .add { width: 28px; height: 28px; border-radius: 6px; }
-    .add:hover { background: var(--hover); color: var(--text); }
+    .add, .history button { width: 28px; height: 28px; border-radius: 6px; }
+    .add:hover, .history button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+    .history button:disabled { opacity: 0.4; }
     .rename { width: 128px; min-width: 0; height: 100%; padding: 0 10px; border-radius: 6px; user-select: text; }
     svg { display: block; }
     [hidden] { display: none !important; }
 
-    .ask-ai { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; margin-left: 4px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--button-edge); border-radius: 6px; background: var(--button-surface); color: var(--button-text); box-shadow: 0 1px 2px rgb(10 13 18 / 0.05); white-space: nowrap; transition: background-color 150ms ease; }
+    /* One row: everything at the left end, where XUNA's header carries on, which has its own Ask AI. */
+    :root[data-mode="one-row"] .history { margin-inline-end: 0; }
+    :root[data-mode="one-row"] .ask-ai { display: none; }
+
+    /* The window isn't in front: the controls fade, as macOS's own toolbars do. */
+    :root[data-inactive] .strip > * { opacity: 0.5; }
+
+    /* Something covers XUNA's page, a dialog's blurred backdrop say: in one row the bar looks covered too
+       (src/preload.js reports how the cover looks), and takes no clicks until it goes. */
+    :root[data-covered] .strip > * { filter: var(--cover-filter, none); pointer-events: none; }
+    :root[data-covered] .strip::after { content: ''; position: absolute; inset: 0; background: var(--cover-tint, transparent); pointer-events: none; }
+
+    /* The tabs at their full width, out of sight, for measuring the bar's left end in one row. */
+    .measure { position: fixed; top: -200px; left: 0; display: flex; gap: 2px; width: max-content; visibility: hidden; pointer-events: none; font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+
+    .ask-ai { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; margin-left: 4px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--button-edge); border-radius: 6px; background: var(--button-surface); color: var(--button-text); box-shadow: 0 1px 2px rgb(10 13 18 / 0.05); white-space: nowrap; transition: background-color 150ms ease, opacity 150ms ease; }
     .ask-ai:hover { background: var(--button-hover); }
     .ask-ai:disabled { opacity: 0.5; }
 
@@ -99,11 +127,19 @@
     @keyframes orb-turn { to { --angle: 360deg; } }
     @keyframes orb-drift { 0% { transform: translate(-6%, -4%) scale(1.05); } 100% { transform: translate(7%, 6%) scale(1.12); } }
     @keyframes orb-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
-    @media (prefers-reduced-motion: reduce) { .orb, .orb > span { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .orb, .orb > span { animation: none; } .tab { transition: none; } }
   </style>
 </head>
 <body>
   <div class="strip">
+    <div class="history">
+      <button class="back" type="button" aria-label="Back" disabled>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2.5 4 6l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="forward" type="button" aria-label="Forward" disabled>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
     <div class="tabs" role="tablist" aria-label="Workspaces"></div>
     <button class="add" type="button" title="Open Workspace (⌘T)" aria-label="Open workspace" aria-haspopup="menu">
       <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -113,6 +149,8 @@
       <span>Ask AI</span>
     </button>
   </div>
+  <div class="measure" aria-hidden="true"></div>
+  <script src="title-strip-layout.js"></script>
   <script src="title-strip.js"></script>
 </body>
 </html>
