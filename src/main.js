@@ -579,12 +579,15 @@ function fromTabPage(event, act) {
 // from, or null for a page that keeps the profile's shared storage. A pop-up gets a copy of the memory
 // of the tab that opened it, or else of the tab in front, and keeps its own writes.
 function onWorkspaceMemoryRequest(event) {
-  event.returnValue = null; // the page waits for this answer, so it always gets one
+  let memory = null;
   try {
-    event.returnValue = workspaceMemoryFor(event.sender, event.senderFrame?.url);
+    memory = workspaceMemoryFor(event.sender, event.senderFrame?.url);
   } catch (error) {
     console.error('[workspace tabs]', error);
   }
+  // The page waits for this answer, so it always gets one. Setting returnValue sends it, so it is set
+  // once: a page is sent whatever was set first.
+  event.returnValue = memory;
 }
 
 function workspaceMemoryFor(contents, url) {
@@ -652,6 +655,7 @@ function turnOffTabs() {
     message: 'Workspace tabs are turned off',
     detail: 'XUNA has changed how it keeps track of your workspace, so XUNA AI can no longer keep your tabs apart. Your other tabs will close, so nothing you do is saved to the wrong workspace. An update to XUNA AI will turn tabs back on.',
     buttons: ['Close Other Tabs'],
+    noLink: true,
   }).then(() => tabs.closeOthers());
 }
 
