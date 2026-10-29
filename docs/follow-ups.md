@@ -60,6 +60,18 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
     shares the real app's notification ID (`APP_ID`).
   - With the real app, a notification-centre click should start a second copy, which hands over
     to the running one and brings it to the front, and that asks.
+- **Try the workspace picker on a Mac with a real account.** It was tried end to end in a
+  Windows development run (`XUNA_WORKSPACE_TABS=1`) against a stand-in for XUNA that keeps its
+  workspace the way XUNA does. On a Mac, with an account in several workspaces, check:
+  - the + menu lists what XUNA's switcher lists, and a picked workspace opens signed in;
+  - two tabs on different workspaces each keep theirs while you work in both, including after
+    a switch in one of them, a reload, and quitting and reopening;
+  - a XUNA pop-up, such as connecting an integration, acts on the tab that opened it;
+  - signing out in one tab signs out the others, and signing back in returns each tab to its
+    workspace;
+  - the menu's headings on macOS 14 and later, and plain greyed labels on older systems.
+- **Ask the web team to keep the current workspace per tab** (`docs/multi-tab-workspaces.md`).
+  Browser users have the same problem today, and the desktop's hook could then go.
 
 ## Known minor issues
 
