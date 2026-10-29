@@ -145,8 +145,9 @@ by the `mac-release` workflow in `codemagic.yaml`, on an Apple silicon Mac mini.
 - Direct:
   - Windows: <https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI-Setup.exe>
   - Mac: <https://github.com/clementxuna/xuna-desktop-app/releases/latest/download/XUNA-AI.dmg>
-- Download page: <https://xuna-desktop-app.vercel.app>, served by a Vercel project that
-  imports this repo with the default settings (leave Root Directory empty).
+- Download page: <https://install.xuna.ai>, served by a Vercel project that imports this repo
+  with the default settings (leave Root Directory empty). It was at
+  `xuna-desktop-app.vercel.app` until 29 October 2026; that address no longer works.
   - `vercel.json` at the repo root tells Vercel to skip installing and building and to serve
     the `site/` folder. `/download/mac` and `/download/windows` redirect to the newest
     installers; `/download`, the original link, still goes to the Windows one.
