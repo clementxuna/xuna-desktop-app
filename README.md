@@ -35,10 +35,11 @@ build from the same code.
   their workspaces when the app reopens (`src/workspace-tabs.js`, `src/workspace-memory.js`,
   `src/workspace-picker.js`).
 - Installed copies update themselves from this repo's GitHub Releases: they check at
-  start-up, every 6 hours and from Check for Updates… (in the XUNA AI menu on Mac, the Help
-  menu on Windows), and download in the background. Once an update has downloaded, they ask to
-  restart for it, by notification if XUNA isn't in front. Choosing Later installs it when the
-  app quits (`src/updates.js`).
+  start-up, every half hour, when the computer wakes and from Check for Updates… (in the XUNA AI
+  menu on Mac, the Help menu on Windows), and download in the background. Once an update has
+  downloaded, they ask to restart for it, even while XUNA is in use, or by notification if XUNA
+  isn't in front. After Later they ask again 4 hours on, and the update installs when the app
+  quits (`src/updates.js`).
 - `site/` is the download page, deployed separately (see below).
 
 ## Develop

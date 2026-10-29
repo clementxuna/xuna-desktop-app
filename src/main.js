@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, Notification, WebContentsView, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell, webContents } = require('electron');
+const { app, BrowserWindow, Menu, Notification, WebContentsView, dialog, ipcMain, nativeTheme, powerMonitor, pushNotifications, screen, session, shell, webContents } = require('electron');
 const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
 const { buildAppMenu, attachContextMenu } = require('./menus');
@@ -711,9 +711,11 @@ function startAutoUpdates() {
     version: app.getVersion(),
     platform: process.platform,
     checkEvery: config.UPDATE_CHECK_INTERVAL_MS,
+    remindAfter: config.UPDATE_REMIND_AFTER_MS,
     ui: {
       inFront: () => BrowserWindow.getFocusedWindow() !== null,
       onNextFocus: (callback) => app.once('browser-window-focus', () => callback()),
+      onWake: (callback) => powerMonitor.on('resume', () => callback()),
       ask: (options) => showMessage({ type: 'info', defaultId: 0, cancelId: 1, noLink: true, ...options }).then(({ response }) => response),
       tell: (options) => showMessage({ type: 'info', ...options }),
       notify: ({ title, body, onClick }) => {

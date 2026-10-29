@@ -230,6 +230,12 @@ reason for it.
   If XUNA isn't in front, a notification appears instead, and clicking it or coming back to XUNA
   asks. Check for Updates… sits where each platform puts it: under About in the Mac app menu, and
   in Help on Windows, since the app has no settings menu.
+- **An update is offered within the half hour, mid-work included.** The app checks every 30
+  minutes and when the computer wakes, and asks as soon as an update has downloaded, whatever
+  the user is doing. After Later it asks again 4 hours on while the app stays open
+  (`UPDATE_REMIND_AFTER_MS`). The checks carry on with an update waiting, so a newer release
+  replaces it, but only look: on Mac, downloading the same update again hands the whole app to
+  Squirrel again, so only a newer version is downloaded.
 - **On Windows, Restart Now quits before it installs.** The installer force-closes any copy
   still running about a second after it starts. electron-updater's `quitAndInstall()` starts it
   first, so a page that answered "Stay" to "Leave this page?" would lose its unsaved changes.

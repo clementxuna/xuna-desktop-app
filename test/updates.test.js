@@ -14,6 +14,13 @@ class FakeUpdater extends EventEmitter {
     this.results = results;
     this.checks = 0;
     this.installs = [];
+    this.autoDownload = true;
+    this.downloads = 0;
+  }
+
+  downloadUpdate() {
+    this.downloads += 1;
+    return Promise.resolve([]);
   }
 
   checkForUpdates() {
@@ -36,6 +43,7 @@ function fakeUi({ inFront = true } = {}) {
     messages: [],
     notifications: [],
     focusListeners: [],
+    wakeListeners: [],
     quits: [],
     windowShown: 0,
     inFront: () => ui.front,
@@ -46,6 +54,7 @@ function fakeUi({ inFront = true } = {}) {
     tell: (options) => ui.messages.push(options),
     notify: (options) => ui.notifications.push(options),
     onNextFocus: (callback) => ui.focusListeners.push(callback),
+    onWake: (callback) => ui.wakeListeners.push(callback),
     showWindow: () => {
       ui.windowShown += 1;
     },
@@ -58,11 +67,16 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 const RESTART = 0;
 const LATER = 1;
 
+const REMIND_AFTER = 4 * HOURS;
+
+// Reminders wait in a list until the test runs them.
 function setUp({ platform = 'win32', inFront = true, results = [] } = {}) {
   const updater = new FakeUpdater(...results);
+  const reminders = [];
+  const schedule = (run, wait) => reminders.push({ run, wait });
   const ui = fakeUi({ inFront });
-  const updates = createUpdates({ updater, ui, version: '1.2.1', platform, checkEvery: 6 * HOURS });
-  return { updater, ui, updates };
+  const updates = createUpdates({ updater, ui, version: '1.2.1', platform, checkEvery: HOURS / 2, remindAfter: REMIND_AFTER, schedule });
+  return { updater, ui, updates, reminders };
 }
 
 const available = (version, downloadPromise = new Promise(() => {})) => ({ isUpdateAvailable: true, updateInfo: { version }, downloadPromise });
@@ -187,14 +201,86 @@ test('Check for Updates… says when the download fails', async () => {
   assert.match(ui.messages[1].message, /Couldn.t download/);
 });
 
-test('checks run at start-up and every few hours, and stop once an update is ready', async (t) => {
+test('installed copies look for an update every half hour, so one released while XUNA is open turns up soon', () => {
+  const config = require('../src/config');
+  assert.equal(config.UPDATE_CHECK_INTERVAL_MS, 30 * 60 * 1000);
+  assert.equal(config.UPDATE_REMIND_AFTER_MS, 4 * HOURS);
+});
+
+test('checks run at start-up and every half hour, and carry on once an update is ready, so a newer one can replace it', (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] });
   const { updater, updates } = setUp();
   updates.start();
   assert.equal(updater.checks, 1);
-  t.mock.timers.tick(6 * HOURS);
+  t.mock.timers.tick(HOURS / 2);
   assert.equal(updater.checks, 2);
   updater.emit('update-downloaded', { version: '1.2.2' });
-  t.mock.timers.tick(12 * HOURS);
+  t.mock.timers.tick(HOURS);
+  assert.equal(updater.checks, 4);
+});
+
+test('a computer waking from sleep looks for an update straight away', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const { updater, ui, updates } = setUp();
+  updates.start();
+  ui.wakeListeners[0]();
   assert.equal(updater.checks, 2);
+});
+
+test('an update found again on a later check is not asked about again', async () => {
+  const { updater, ui } = setUp();
+  updater.emit('update-downloaded', { version: '1.2.2' });
+  ui.answers[0](LATER);
+  await settle();
+  updater.emit('update-downloaded', { version: '1.2.2' });
+  assert.equal(ui.questions.length, 1);
+});
+
+test('a newer update replaces the one waiting, and asks about it', async () => {
+  const { updater, ui } = setUp();
+  updater.emit('update-downloaded', { version: '1.2.2' });
+  ui.answers[0](LATER);
+  await settle();
+  updater.emit('update-downloaded', { version: '1.2.3' });
+  assert.equal(ui.questions.length, 2);
+  assert.match(ui.questions[1].message, /1\.2\.3/);
+});
+
+test('after Later, XUNA asks again a few hours on, even while it is being used', async () => {
+  const { updater, ui, reminders } = setUp();
+  updater.emit('update-downloaded', { version: '1.2.2' });
+  ui.answers[0](LATER);
+  await settle();
+  assert.equal(reminders.length, 1);
+  assert.equal(reminders[0].wait, REMIND_AFTER);
+  reminders[0].run();
+  assert.equal(ui.questions.length, 2);
+});
+
+test('a reminder while XUNA is not in front comes as a notification, and a newer answer replaces an older reminder', async () => {
+  const { updater, ui, reminders } = setUp();
+  updater.emit('update-downloaded', { version: '1.2.2' });
+  ui.answers[0](LATER);
+  await settle();
+  updater.emit('update-downloaded', { version: '1.2.3' }); // asked again, and Later again
+  ui.answers[1](LATER);
+  await settle();
+  reminders[0].run(); // the first reminder is out of date
+  assert.equal(ui.questions.length, 2);
+  ui.front = false;
+  reminders[1].run();
+  assert.equal(ui.questions.length, 2);
+  assert.equal(ui.notifications.length, 1);
+  assert.match(ui.notifications[0].body, /1\.2\.3/);
+});
+
+test('with an update waiting, checks only look, and download again only for a newer release', async () => {
+  // Downloading the same update again would hand the whole app to Squirrel again on Mac, every half hour.
+  const { updater, updates } = setUp({ results: [available('1.2.2'), available('1.2.3')] });
+  updater.emit('update-downloaded', { version: '1.2.2' });
+  assert.equal(updater.autoDownload, false);
+  await updates.check();
+  assert.equal(updater.downloads, 0);
+  await updates.check();
+  assert.equal(updater.downloads, 1);
 });
