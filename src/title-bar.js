@@ -8,8 +8,11 @@ const { BACKGROUND } = require('./config');
 
 // On Mac the window hides macOS's own title bar, which is grey whatever theme XUNA shows, and keeps its
 // three buttons over a strip in XUNA's black or white (src/title-strip.html), with the XUNA page below.
-// 28px is macOS's own title bar height, so the buttons sit where they always do.
-const MAC_TITLE_STRIP_HEIGHT = 28;
+// The strip is 40px, a little taller than macOS's own 28px bar, so its 28px-tall tabs and buttons (Ask
+// AI among them) sit in it with room round them. The three buttons move down to its middle, level with
+// them: macOS draws each in a 16px-tall frame, from this top-left corner.
+const MAC_TITLE_STRIP_HEIGHT = 40;
+const MAC_TRAFFIC_LIGHTS = { x: 14, y: 12 };
 
 // report: { colorScheme: the page's computed CSS color-scheme, prefersDark: the system is in dark mode }
 function titleBarColor(report) {
@@ -47,4 +50,15 @@ function pickerPanelBounds({ anchor, width, height, panelHeight }) {
   return { x: Math.round(x), y: Math.round(y), width: Math.round(viewWidth), height: Math.round(Math.max(0, Math.min(wanted, height - y))) };
 }
 
-module.exports = { MAC_TITLE_STRIP_HEIGHT, titleBarColor, macAppViewBounds, PICKER_PANEL_WIDTH, pickerPanelBounds };
+// What the tab in front's page says about XUNA's own Ask AI button (see src/preload.js), as the strip's
+// Ask AI shows it: whether there is one to press, whether the assistant is open, and the orb's four
+// colours, which follow the workspace's branding. Colours that aren't plain CSS colours are dropped,
+// and the strip uses XUNA's own.
+const ORB_COLOR = /^[#a-z0-9\s(),.%-]{1,120}$/i;
+
+function askAiState(report) {
+  const colors = Array.isArray(report?.colors) && report.colors.length === 4 && report.colors.every((color) => typeof color === 'string' && ORB_COLOR.test(color) && !/url\(/i.test(color));
+  return { available: report?.available === true, open: report?.open === true, colors: colors ? [...report.colors] : null };
+}
+
+module.exports = { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macAppViewBounds, PICKER_PANEL_WIDTH, pickerPanelBounds, askAiState };

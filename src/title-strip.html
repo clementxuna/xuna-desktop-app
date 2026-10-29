@@ -2,17 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
   <title>XUNA AI</title>
   <!-- The strip above the XUNA pages on Mac, behind the window's three buttons. Its colour is the
        window's background, which src/main.js sets to XUNA's black or white, and it drags the window,
-       as macOS's own title bar would. Its right end holds the workspace tab buttons, drawn by
-       src/title-strip.js; they take clicks instead. Its height is MAC_TITLE_STRIP_HEIGHT in
-       src/title-bar.js.
+       as macOS's own title bar would. Its right end holds the workspace tab buttons, the + button
+       and Ask AI, drawn by src/title-strip.js; they take clicks instead. Its height is
+       MAC_TITLE_STRIP_HEIGHT in src/title-bar.js, and the three buttons sit in its middle
+       (MAC_TRAFFIC_LIGHTS), level with the tabs. Its type is XUNA's Inter, from where app.xuna.ai
+       gets it; offline, the system font stands in.
 
        The strip declares no colour scheme. Chromium paints a page whose root is in a dark colour
        scheme with its own grey, #121212, instead of letting the window's colour show through, and
        the strip then stands out as a grey bar above XUNA's black header. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&display=swap">
   <style>
     :root {
       --text: #0a0a0a;
@@ -20,6 +23,11 @@
       --hover: rgb(10 10 10 / 6%);
       --selected: rgb(10 10 10 / 9%);
       --ring: rgb(10 10 10 / 35%);
+      /* Ask AI is XUNA's own outline button, with the values its stylesheet computes. */
+      --button-surface: #fafafa;
+      --button-hover: #ffffff;
+      --button-edge: #e9eaeb;
+      --button-text: #181d27;
     }
     :root[data-theme="dark"] {
       --text: #fafafa;
@@ -27,12 +35,16 @@
       --hover: rgb(250 250 250 / 7%);
       --selected: rgb(250 250 250 / 13%);
       --ring: rgb(250 250 250 / 40%);
+      --button-surface: #030303;
+      --button-hover: #161616;
+      --button-edge: #141618;
+      --button-text: #f7f7f7;
     }
     html, body { margin: 0; background: transparent; }
-    .strip { position: fixed; top: 0; left: 0; right: 0; height: 28px; app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 6px 0 84px; box-sizing: border-box; font: 500 12px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: var(--text); user-select: none; }
+    .strip { position: fixed; top: 0; left: 0; right: 0; height: 40px; app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 8px 0 90px; box-sizing: border-box; font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: var(--text); user-select: none; }
     .tabs { display: flex; gap: 2px; min-width: 0; }
-    .tab, .add { app-region: no-drag; -webkit-app-region: no-drag; }
-    .tab { display: flex; align-items: center; flex: 0 1 auto; min-width: 44px; max-width: 168px; height: 20px; border-radius: 6px; color: var(--muted); }
+    .tab, .add, .ask-ai { app-region: no-drag; -webkit-app-region: no-drag; }
+    .tab { display: flex; align-items: center; flex: 0 1 auto; min-width: 48px; max-width: 176px; height: 28px; border-radius: 6px; color: var(--muted); }
     .tab:hover { background: var(--hover); color: var(--text); }
     .tab.active { background: var(--selected); color: var(--text); }
     button, input { margin: 0; border: 0; background: none; color: inherit; font: inherit; }
@@ -40,21 +52,65 @@
     button:focus-visible, input:focus { outline: 1px solid var(--ring); outline-offset: -1px; }
     .select { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 2px 0 10px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
     .close, .add { display: grid; place-items: center; flex: none; padding: 0; color: var(--muted); }
-    .close { width: 16px; height: 16px; margin: 0 2px; border-radius: 4px; visibility: hidden; }
+    .close { width: 18px; height: 18px; margin: 0 4px 0 2px; border-radius: 4px; visibility: hidden; }
     .tab:hover .close, .tab.active .close, .close:focus-visible { visibility: visible; }
     .close:hover { background: var(--hover); color: var(--text); }
-    .add { width: 20px; height: 20px; border-radius: 6px; }
+    .add { width: 28px; height: 28px; border-radius: 6px; }
     .add:hover { background: var(--hover); color: var(--text); }
-    .rename { width: 120px; min-width: 0; height: 100%; padding: 0 10px; border-radius: 6px; user-select: text; }
+    .rename { width: 128px; min-width: 0; height: 100%; padding: 0 10px; border-radius: 6px; user-select: text; }
     svg { display: block; }
     [hidden] { display: none !important; }
+
+    .ask-ai { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; margin-left: 4px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--button-edge); border-radius: 6px; background: var(--button-surface); color: var(--button-text); box-shadow: 0 1px 2px rgb(10 13 18 / 0.05); white-space: nowrap; transition: background-color 150ms ease; }
+    .ask-ai:hover { background: var(--button-hover); }
+    .ask-ai:disabled { opacity: 0.5; }
+
+    /* XUNA's Ask AI orb (SiriOrb in the web app, as AskAiOrb draws it): a mesh of the workspace's orb
+       colours turning once every twelve seconds, a drifting sheen, a lit rim and a soft glow, breathing
+       slowly. The colours are XUNA's own until the tab's page says which its workspace uses. */
+    @property --angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+    .orb-wrap { position: relative; display: grid; flex: none; place-items: center; width: 16px; height: 16px; }
+    .orb {
+      --c1: #6232ff;
+      --c2: #2849ff;
+      --c3: color-mix(in oklab, #6232ff 62%, #2849ff);
+      --c4: color-mix(in oklab, #2849ff 68%, white);
+      --bg: oklch(92% 0.03 300);
+      position: relative; display: grid; width: 16px; height: 16px; overflow: hidden; border-radius: 50%; isolation: isolate;
+      animation: orb-breathe 5.5s ease-in-out infinite;
+    }
+    .orb > span { grid-area: 1 / 1; width: 100%; height: 100%; border-radius: 50%; }
+    .orb-glow { position: absolute; inset: -12%; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--glow, #2849ff) 0%, transparent 64%); filter: blur(4.5px); opacity: 0.35; }
+    .orb-mesh {
+      background:
+        conic-gradient(from calc(var(--angle) * 2) at 25% 70%, var(--c3), transparent 20% 80%, var(--c3)),
+        conic-gradient(from calc(var(--angle) * 2) at 45% 75%, var(--c2), transparent 30% 60%, var(--c2)),
+        conic-gradient(from calc(var(--angle) * -3) at 80% 20%, var(--c1), transparent 40% 60%, var(--c1)),
+        conic-gradient(from calc(var(--angle) * 1.5) at 60% 35%, var(--c4), transparent 25% 75%, var(--c4)),
+        conic-gradient(from calc(var(--angle) * 2) at 15% 5%, var(--c2), transparent 10% 90%, var(--c2)),
+        conic-gradient(from calc(var(--angle) * 1) at 20% 80%, var(--c1), transparent 10% 90%, var(--c1)),
+        conic-gradient(from calc(var(--angle) * -2) at 85% 10%, var(--c3), transparent 20% 80%, var(--c3));
+      box-shadow: inset var(--bg) 0 0 0.5px 0.1px;
+      filter: blur(1px) contrast(1.1) saturate(1.4);
+      animation: orb-turn 12s linear infinite;
+    }
+    .orb-sheen { background: radial-gradient(circle at 30% 24%, hsl(0 0% 100% / 0.32), transparent 34%), radial-gradient(circle at 72% 80%, hsl(0 0% 100% / 0.07), transparent 48%); mix-blend-mode: screen; animation: orb-drift 12s ease-in-out infinite alternate; }
+    .orb-rim { box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.16), inset 0 1.5px 3px hsl(0 0% 100% / 0.22), inset 0 -1.8px 3.6px hsl(0 0% 0% / 0.4); }
+    @keyframes orb-turn { to { --angle: 360deg; } }
+    @keyframes orb-drift { 0% { transform: translate(-6%, -4%) scale(1.05); } 100% { transform: translate(7%, 6%) scale(1.12); } }
+    @keyframes orb-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+    @media (prefers-reduced-motion: reduce) { .orb, .orb > span { animation: none; } }
   </style>
 </head>
 <body>
   <div class="strip">
     <div class="tabs" role="tablist" aria-label="Workspaces"></div>
     <button class="add" type="button" title="Open Workspace (⌘T)" aria-label="Open workspace" aria-haspopup="menu">
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1v8M1 5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <button class="ask-ai" type="button" aria-label="Ask AI" aria-pressed="false" disabled>
+      <span class="orb-wrap" aria-hidden="true"><span class="orb-glow"></span><span class="orb"><span class="orb-mesh"></span><span class="orb-sheen"></span><span class="orb-rim"></span></span></span>
+      <span>Ask AI</span>
     </button>
   </div>
   <script src="title-strip.js"></script>

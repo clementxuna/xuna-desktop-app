@@ -53,9 +53,10 @@ reason for it.
   bar is grey in dark mode and follows the system's setting rather than XUNA's, and forcing
   the system theme instead would trap a page set to follow the system on its last colour.
   - The window hides the title bar (`titleBarStyle: 'hidden'`), which keeps the buttons. The
-    28-pixel strip they sit on is the window's background colour, which the main process sets
-    from the theme the page reports. 28 pixels is macOS's own title bar height, so the buttons
-    sit where they always do.
+    strip they sit on is the window's background colour, which the main process sets from the
+    theme the page reports. It is 40 pixels, a little taller than macOS's own 28, so its tabs and
+    buttons can be 28 pixels with room round them, and the three buttons are moved down to its
+    middle (`trafficLightPosition`), level with them.
   - The strip is transparent and declares no colour scheme, so the window's colour is all that
     shows. Chromium paints a page in a dark colour scheme with its own grey, #121212. In 1.2.0
     the strip declared one, and the bar showed grey above XUNA's black header.
@@ -67,6 +68,16 @@ reason for it.
     runs, and a quit that a page held up finishes once they have closed. Back, Forward, Reload
     and Developer Tools act on the XUNA page shown, not the strip.
   - Sign-in and connect pop-ups keep macOS's standard title bar.
+- **Ask AI at the strip's right end, beside the + button,** where XUNA's header puts its own next
+  to the workspace switcher. It presses XUNA's own Ask AI button in the tab in front (the header
+  button, `aria-label="Ask AI"`), so the assistant opens and closes exactly as it does from
+  XUNA: XUNA offers no other way in, no shortcut, event or address. The page's preload says
+  whether the button is there (it isn't on the sign-in page, and the strip's waits, dimmed),
+  whether the assistant is open, and the orb's colours.
+  - It is drawn as XUNA draws its own: the outline button with the values XUNA's stylesheet
+    computes in each theme, and XUNA's orb (SiriOrb) ported to CSS, in the workspace's own orb
+    colours, so a white-labelled workspace's shows its brand. It turns, drifts and breathes as
+    XUNA's does, and stands still with Reduce Motion on. The strip's type is XUNA's Inter.
 - **The colours are exactly XUNA's header's:** `#030303` in dark mode (the page colour, which
   the header shares there) and white in light mode, so the title bar and the header read as one
   band. They live in `src/config.js` and have to follow the web app if its header changes colour.

@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { MAC_TITLE_STRIP_HEIGHT, titleBarColor, macAppViewBounds, PICKER_PANEL_WIDTH, pickerPanelBounds } = require('../src/title-bar');
+const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macAppViewBounds, PICKER_PANEL_WIDTH, pickerPanelBounds, askAiState } = require('../src/title-bar');
 const { BACKGROUND } = require('../src/config');
 
 test("the title bar uses the black and white of the app's header", () => {
@@ -35,9 +35,15 @@ test('a malformed report gives a white title bar instead of throwing', () => {
   }
 });
 
-test("on Mac the XUNA page sits below a strip as tall as macOS's own title bar", () => {
-  assert.equal(MAC_TITLE_STRIP_HEIGHT, 28);
-  assert.deepEqual(macAppViewBounds({ width: 1280, height: 820, fullScreen: false }), { x: 0, y: 28, width: 1280, height: 792 });
+test("on Mac the XUNA page sits below a strip a little taller than macOS's own title bar, to fit Ask AI", () => {
+  assert.equal(MAC_TITLE_STRIP_HEIGHT, 40);
+  assert.deepEqual(macAppViewBounds({ width: 1280, height: 820, fullScreen: false }), { x: 0, y: 40, width: 1280, height: 780 });
+});
+
+test("the window's three buttons sit in the middle of the strip, level with its tabs and buttons", () => {
+  // macOS draws each in a 16px-tall frame, from the top-left corner given here.
+  assert.deepEqual(MAC_TRAFFIC_LIGHTS, { x: 14, y: 12 });
+  assert.equal(MAC_TRAFFIC_LIGHTS.y + 16 / 2, MAC_TITLE_STRIP_HEIGHT / 2);
 });
 
 test('in full screen the XUNA page takes the whole window', () => {
@@ -46,12 +52,12 @@ test('in full screen the XUNA page takes the whole window', () => {
 
 test('with two or more workspace tabs open the strip stays in full screen, so they can still be switched', () => {
   assert.deepEqual(macAppViewBounds({ width: 1512, height: 982, fullScreen: true, tabCount: 1 }), { x: 0, y: 0, width: 1512, height: 982 });
-  assert.deepEqual(macAppViewBounds({ width: 1512, height: 982, fullScreen: true, tabCount: 2 }), { x: 0, y: 28, width: 1512, height: 954 });
-  assert.deepEqual(macAppViewBounds({ width: 1280, height: 820, fullScreen: false, tabCount: 3 }), { x: 0, y: 28, width: 1280, height: 792 });
+  assert.deepEqual(macAppViewBounds({ width: 1512, height: 982, fullScreen: true, tabCount: 2 }), { x: 0, y: 40, width: 1512, height: 942 });
+  assert.deepEqual(macAppViewBounds({ width: 1280, height: 820, fullScreen: false, tabCount: 3 }), { x: 0, y: 40, width: 1280, height: 780 });
 });
 
 test('a window smaller than the strip gives the page no height rather than a negative one', () => {
-  assert.deepEqual(macAppViewBounds({ width: 400, height: 10, fullScreen: false }), { x: 0, y: 28, width: 400, height: 0 });
+  assert.deepEqual(macAppViewBounds({ width: 400, height: 10, fullScreen: false }), { x: 0, y: 40, width: 400, height: 0 });
 });
 
 const stripHtml = () => fs.readFileSync(path.join(__dirname, '..', 'src', 'title-strip.html'), 'utf8');
@@ -64,7 +70,7 @@ test("the strip's drag area is exactly the strip", () => {
 });
 
 test("the strip's buttons take clicks instead of dragging the window", () => {
-  const buttons = cssRule(stripHtml(), '.tab, .add');
+  const buttons = cssRule(stripHtml(), '.tab, .add, .ask-ai');
   assert.match(buttons, /(^|[\s;])app-region:\s*no-drag/);
   assert.match(buttons, /-webkit-app-region:\s*no-drag/);
 });
@@ -86,7 +92,7 @@ test('the strip runs only its own script file', () => {
 
 test("the workspace panel opens below the + button, its right edge in line with the button's, as wide as XUNA's", () => {
   // The view holds the panel and a transparent margin for its shadow: 12px either side, 4 above, 16 below.
-  const anchor = { x: 1240, y: 4, width: 20, height: 20 };
+  const anchor = { x: 1240, y: 4, width: 20, height: 20 }; // the + button's rectangle in the strip
   assert.equal(PICKER_PANEL_WIDTH, 384);
   assert.deepEqual(pickerPanelBounds({ anchor, width: 1280, height: 820, panelHeight: 300 }), { x: 864, y: 28, width: 408, height: 320 });
 });
@@ -95,4 +101,12 @@ test('the workspace panel stays inside a narrow window, and no taller than the s
   const anchor = { x: 360, y: 4, width: 20, height: 20 };
   assert.deepEqual(pickerPanelBounds({ anchor, width: 400, height: 500, panelHeight: 300 }), { x: 0, y: 28, width: 400, height: 320 });
   assert.equal(pickerPanelBounds({ anchor, width: 1280, height: 200, panelHeight: 300 }).height, 172);
+});
+
+test("Ask AI follows XUNA's own button in the tab in front: there or not, open or not, in the workspace's colours", () => {
+  const colors = ['#6232FF', '#2849FF', 'color-mix(in oklab, #6232FF 62%, #2849FF)', 'color-mix(in oklab, #2849FF 68%, white)'];
+  assert.deepEqual(askAiState({ available: true, open: true, colors }), { available: true, open: true, colors });
+  assert.deepEqual(askAiState({ available: 1, open: 'yes', colors: [...colors.slice(0, 3), 'url(https://example.com/x)'] }), { available: false, open: false, colors: null });
+  assert.deepEqual(askAiState({ available: true, open: false, colors: colors.slice(0, 2) }), { available: true, open: false, colors: null });
+  assert.deepEqual(askAiState(undefined), { available: false, open: false, colors: null });
 });

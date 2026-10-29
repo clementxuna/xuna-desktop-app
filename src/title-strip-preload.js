@@ -9,7 +9,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const ask = (request) => ipcRenderer.send('xuna:workspace-tab-request', request);
 
 contextBridge.exposeInMainWorld('workspaceTabs', {
-  // state: { tabs: [{ id, label, active }], dark }
+  // state: { tabs: [{ id, label, active }], dark, askAi: { available, open, colors } }
   onChange: (callback) => ipcRenderer.on('xuna:workspace-tabs', (_event, state) => callback(state)),
   // The Window menu's "Rename Workspace Tab…" (id: the tab shown).
   onRename: (callback) => ipcRenderer.on('xuna:workspace-tab-rename', (_event, id) => callback(id)),
@@ -21,4 +21,6 @@ contextBridge.exposeInMainWorld('workspaceTabs', {
   close: (id) => ask({ type: 'close', id }),
   rename: (id, name) => ask({ type: 'rename', id, name }),
   editing: (active) => ask({ type: 'editing', active }),
+  // Ask AI: XUNA's own, pressed in the tab in front.
+  askAi: () => ask({ type: 'ask-ai' }),
 });

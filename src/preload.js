@@ -21,6 +21,45 @@ contextBridge.exposeInMainWorld('xunaDesktop', {
 // null for a page that keeps the profile's shared storage: anything outside a workspace tab.
 const workspace = ipcRenderer.sendSync('xuna:workspace-memory');
 if (workspace) keepWorkspaceInTab(workspace);
+if (workspace?.report) watchAskAi();
+
+// The strip's Ask AI presses XUNA's own, in the header of the tab in front (see src/title-strip.js), so
+// the assistant opens as it does from there. This tells the main process whether the tab's page has
+// that button to press, whether the assistant is open, and the colours of its orb, which follow the
+// workspace's branding.
+function watchAskAi() {
+  const find = () => document.querySelector('button[aria-label="Ask AI"]');
+  let last = '';
+  const report = () => {
+    const button = find();
+    const orb = button?.querySelector('.siri-orb');
+    const style = orb ? getComputedStyle(orb) : null;
+    const colors = style ? ['--c1', '--c2', '--c3', '--c4'].map((name) => style.getPropertyValue(name).trim()) : null;
+    const state = { available: Boolean(button) && !button.disabled, open: button?.getAttribute('aria-pressed') === 'true', colors: colors?.every(Boolean) ? colors : null };
+    const serialized = JSON.stringify(state);
+    if (serialized === last) return;
+    last = serialized;
+    ipcRenderer.send('xuna:ask-ai-state', state);
+  };
+  // XUNA redraws often; the page is looked at again at most five times a second.
+  let waiting = false;
+  const soon = () => {
+    if (waiting) return;
+    waiting = true;
+    setTimeout(() => {
+      waiting = false;
+      report();
+    }, 200);
+  };
+  window.addEventListener('DOMContentLoaded', () => {
+    new MutationObserver(soon).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-pressed', 'disabled'] });
+    report();
+  });
+  ipcRenderer.on('xuna:ask-ai-toggle', () => {
+    find()?.click();
+    soon();
+  });
+}
 
 // prefixes: the keys a tab keeps for itself. values: the tab's copy, or null for a tab that has none
 // yet, which starts from what the profile holds. report: false for a pop-up, whose writes stay its own.

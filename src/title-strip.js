@@ -3,22 +3,41 @@
 // Draws the workspace tab buttons at the right end of the Mac title strip (src/title-strip.html) from
 // what the main process sends (see addWorkspaceTabs in src/main.js), and passes their clicks back
 // through src/title-strip-preload.js. With one tab open only the + button shows; it opens a menu of the
-// account's workspaces, below it. Double-clicking a tab renames it.
+// account's workspaces, below it. Double-clicking a tab renames it. Ask AI, at the far right, presses
+// XUNA's own Ask AI in the tab in front, and is drawn as XUNA draws it.
 
 const bridge = window.workspaceTabs;
 const list = document.querySelector('.tabs');
 const addButton = document.querySelector('.add');
-let current = { tabs: [], dark: false };
+const askButton = document.querySelector('.ask-ai');
+const orb = document.querySelector('.orb');
+let current = { tabs: [], dark: false, askAi: { available: false, open: false, colors: null } };
 let renaming = null; // the tab whose name is being typed; it is redrawn once that ends
 
 bridge.onChange((state) => {
   current = state;
   document.documentElement.dataset.theme = state.dark ? 'dark' : 'light';
+  showAskAi(state.askAi);
   if (!renaming) render();
 });
 bridge.onRename(startRename);
 bridge.onPick(pick); // ⌘T
 addButton.addEventListener('click', pick);
+askButton.addEventListener('click', () => bridge.askAi());
+
+// askAi: what the tab in front says about XUNA's own Ask AI (askAiState in src/title-bar.js). Without
+// one to press, as on the sign-in page, the button waits, dimmed.
+function showAskAi({ available, open, colors } = {}) {
+  askButton.disabled = !available;
+  askButton.setAttribute('aria-pressed', String(Boolean(open)));
+  askButton.title = available ? 'Ask AI' : 'Ask AI is ready once XUNA has loaded';
+  ['--c1', '--c2', '--c3', '--c4'].forEach((name, index) => {
+    if (colors) orb.style.setProperty(name, colors[index]);
+    else orb.style.removeProperty(name);
+  });
+  if (colors) orb.parentElement.style.setProperty('--glow', colors[1]);
+  else orb.parentElement.style.removeProperty('--glow');
+}
 
 // The main process pops the menu up at the + button, so it is told where the button is.
 function pick() {

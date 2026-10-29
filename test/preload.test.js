@@ -60,9 +60,12 @@ function makeBrowser() {
 }
 
 // seed: what the main process answers for this page (see xuna:workspace-memory in src/main.js).
-function runPreload({ seed, shared = {}, failHook = false } = {}) {
+// askButton: XUNA's header Ask AI button as the page has it, or null for a page without one.
+function runPreload({ seed, shared = {}, failHook = false, askButton = null } = {}) {
   const sent = [];
-  const globals = ['window', 'Storage', 'XMLHttpRequest'];
+  const ipcListeners = {};
+  const observers = [];
+  const globals = ['window', 'Storage', 'XMLHttpRequest', 'document', 'MutationObserver', 'getComputedStyle'];
   const saved = Object.fromEntries(globals.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const { FakeStorage, FakeXhr } = makeBrowser();
   const localStorage = new FakeStorage(shared);
@@ -70,6 +73,17 @@ function runPreload({ seed, shared = {}, failHook = false } = {}) {
   const listeners = {};
   globalThis.Storage = FakeStorage;
   globalThis.XMLHttpRequest = FakeXhr;
+  globalThis.document = {
+    documentElement: {},
+    querySelector: (selector) => (selector === 'button[aria-label="Ask AI"]' ? askButton : null),
+  };
+  globalThis.MutationObserver = class {
+    constructor(callback) {
+      observers.push(callback);
+    }
+    observe() {}
+  };
+  globalThis.getComputedStyle = (element) => ({ colorScheme: 'normal', getPropertyValue: (name) => element?.cssVariables?.[name] ?? '' });
   globalThis.window = {
     localStorage,
     matchMedia: () => ({ matches: false, addEventListener() {} }),
@@ -87,6 +101,7 @@ function runPreload({ seed, shared = {}, failHook = false } = {}) {
     ipcRenderer: {
       sendSync: (channel) => (channel === 'xuna:workspace-memory' ? seed : undefined),
       send: (channel, ...args) => sent.push([channel, ...args]),
+      on: (channel, listener) => (ipcListeners[channel] ??= []).push(listener),
       invoke: async () => null,
     },
   };
@@ -108,7 +123,9 @@ function runPreload({ seed, shared = {}, failHook = false } = {}) {
     }
   };
   const dispatch = (type, event) => (listeners[type] ?? []).forEach((listener) => listener(event));
-  return { sent, localStorage, page: globalThis.window, fetched, dispatch, restore };
+  const fromMain = (channel) => (ipcListeners[channel] ?? []).forEach((listener) => listener({}));
+  const mutate = () => observers.forEach((callback) => callback([]));
+  return { sent, localStorage, page: globalThis.window, fetched, dispatch, fromMain, mutate, restore };
 }
 
 const tabSeed = (values, remembered = values?.[ACTIVE] ?? null, report = true) => ({ prefixes: PREFIXES, activeKey: ACTIVE, values, remembered, report });
@@ -232,4 +249,66 @@ test('a page back from the back/forward cache says again that it reads its works
   run.dispatch('pageshow', { persisted: false }); // an ordinary load
   run.dispatch('pageshow', { persisted: true });
   assert.equal(reads(), 2);
+});
+
+// XUNA's header button: pressing it opens or closes the assistant, which aria-pressed says.
+function xunaAskButton() {
+  const orb = { cssVariables: { '--c1': '#6232FF', '--c2': '#2849FF', '--c3': 'color-mix(in oklab, #6232FF 62%, #2849FF)', '--c4': 'color-mix(in oklab, #2849FF 68%, white)' } };
+  const button = {
+    disabled: false,
+    pressed: 'false',
+    clicks: 0,
+    getAttribute: (name) => (name === 'aria-pressed' ? button.pressed : null),
+    querySelector: (selector) => (selector === '.siri-orb' ? orb : null),
+    click() {
+      button.clicks += 1;
+      button.pressed = button.pressed === 'true' ? 'false' : 'true';
+    },
+  };
+  return button;
+}
+const askStates = (run) => run.sent.filter(([channel]) => channel === 'xuna:ask-ai-state').map((message) => message[1]);
+
+test("a tab's page says whether XUNA's Ask AI is there and open, with the orb's colours, for the strip's own", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const button = xunaAskButton();
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), askButton: button });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  const colors = ['#6232FF', '#2849FF', 'color-mix(in oklab, #6232FF 62%, #2849FF)', 'color-mix(in oklab, #2849FF 68%, white)'];
+  assert.deepEqual(askStates(run), [{ available: true, open: false, colors }]);
+  button.pressed = 'true'; // opened from the page itself
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.deepEqual(askStates(run).at(-1), { available: true, open: true, colors });
+  run.mutate(); // nothing changed, so nothing more is said
+  t.mock.timers.tick(250);
+  assert.equal(askStates(run).length, 2);
+});
+
+test("the strip's Ask AI presses XUNA's own button in the page, so the assistant opens as it does there", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const button = xunaAskButton();
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), askButton: button });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:ask-ai-toggle');
+  assert.equal(button.clicks, 1);
+  t.mock.timers.tick(250);
+  assert.equal(askStates(run).at(-1).open, true);
+});
+
+test("a page without XUNA's Ask AI says so, and a pop-up stays out of it", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const bare = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }) });
+  bare.dispatch('DOMContentLoaded');
+  assert.deepEqual(askStates(bare), [{ available: false, open: false, colors: null }]);
+  bare.fromMain('xuna:ask-ai-toggle'); // nothing to press
+  t.mock.timers.tick(250);
+  assert.equal(askStates(bare).length, 1);
+  bare.restore();
+  const popup = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }, 'ws-tab', false), askButton: xunaAskButton() });
+  t.after(popup.restore);
+  popup.dispatch('DOMContentLoaded');
+  assert.deepEqual(askStates(popup), []);
 });

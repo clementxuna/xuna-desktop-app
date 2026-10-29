@@ -7,7 +7,7 @@ const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
 const { buildAppMenu, attachContextMenu } = require('./menus');
 const { createUpdates } = require('./updates');
-const { titleBarColor, macAppViewBounds } = require('./title-bar');
+const { MAC_TRAFFIC_LIGHTS, titleBarColor, macAppViewBounds, askAiState } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
 const { ACTIVE_WORKSPACE_KEY, TAB_KEY_PREFIXES, readMemory, applyWrite, workspaceOf, seedFor, createIsolationGuard, memoryForPage } = require('./workspace-memory');
@@ -84,6 +84,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on('xuna:workspace-memory-write', onWorkspaceMemoryWrite);
     ipcMain.on('xuna:workspace-memory-read', (event) => fromTabPage(event, () => isolationGuard.pageRead(event.sender.id)));
     ipcMain.on('xuna:workspace-list', onWorkspaceList);
+    ipcMain.on('xuna:ask-ai-state', (event, report) => fromTabPage(event, (tabs, id) => tabs.setAskAi(id, report)));
     guardSession(session.defaultSession);
     if (USE_TABS) {
       removeOldTabProfiles();
@@ -257,7 +258,7 @@ function createMainWindow() {
     title: 'XUNA AI',
     backgroundColor: (USE_TABS && titleBar) || backgroundColor(),
     ...titleBarOptions(),
-    ...(IS_MAC ? { titleBarStyle: 'hidden' } : {}),
+    ...(IS_MAC ? { titleBarStyle: 'hidden', trafficLightPosition: MAC_TRAFFIC_LIGHTS } : {}),
     autoHideMenuBar: true,
     // On Mac the window's own page is the title strip, with the workspace tab buttons; XUNA gets views below it.
     webPreferences: USE_TABS ? stripPreferences : XUNA_PAGE_PREFERENCES,
@@ -321,6 +322,7 @@ function addWorkspaceTabs(win, webPreferences) {
   let state = readTabs(readState(stateFile));
   const views = new Map(); // tab id → { view, page }; the page is held, since view.webContents is undefined once it is destroyed
   const closingTabs = new Set(); // tabs being closed, whose page is deciding whether it may go
+  const askAi = new Map(); // tab id → what its page says about XUNA's Ask AI (askAiState in src/title-bar.js)
   let closingWindow = false; // the window is closing its pages, one at a time
 
   const pageOf = (id) => {
@@ -338,6 +340,7 @@ function addWorkspaceTabs(win, webPreferences) {
     win.webContents.send('xuna:workspace-tabs', {
       tabs: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
       dark: titleBar === config.BACKGROUND.dark,
+      askAi: askAiState(askAi.get(state.active)),
     });
   };
 
@@ -400,6 +403,7 @@ function addWorkspaceTabs(win, webPreferences) {
   // "Leave this page?" kept never gets here.
   const onPageClosed = (id, view) => {
     if (views.get(id)?.view === view) views.delete(id);
+    askAi.delete(id);
     if (win.isDestroyed()) return;
     win.contentView.removeChildView(view);
     if (closingTabs.delete(id)) {
@@ -488,6 +492,18 @@ function addWorkspaceTabs(win, webPreferences) {
       const next = tabsTurnedOff ? null : addTab(state, { memory: seedFor(workspaceId), workspaceName: name });
       if (next) show(next);
     },
+    // What a tab's page says about XUNA's own Ask AI (see watchAskAi in src/preload.js).
+    setAskAi: (id, report) => {
+      askAi.set(id, askAiState(report));
+      if (id === state.active) sendToStrip();
+    },
+    // The strip's Ask AI: XUNA's own button, pressed in the tab in front, and the keyboard there.
+    askAi: () => {
+      const page = pageOf(state.active);
+      if (!page || !askAi.get(state.active)?.available) return;
+      page.send('xuna:ask-ai-toggle');
+      page.focus();
+    },
     closeOthers: () => {
       for (const tab of state.tabs) if (tab.id !== state.active) tabs.close(tab.id);
     },
@@ -559,6 +575,7 @@ function onWorkspaceTabRequest(event, request) {
   else if (request.type === 'close') tabs.close(request.id);
   else if (request.type === 'rename') tabs.rename(request.id, request.name);
   else if (request.type === 'editing') tabs.editing(request.active === true);
+  else if (request.type === 'ask-ai') tabs.askAi();
 }
 
 // The + button's rectangle as the strip measured it, or null.

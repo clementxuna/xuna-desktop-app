@@ -79,7 +79,10 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
     of normal use, all without the tabs turning themselves off;
   - the + panel beside XUNA's own picker, in both themes: the type, colours, logos and shadow,
     searching, the arrow keys, Escape, clicking away (including onto another tab), ⌘T, a long
-    list that scrolls, and full screen.
+    list that scrolls, and full screen;
+  - the 40px strip: the three window buttons in its middle, level with the tabs, + and Ask AI;
+    Ask AI opening and closing XUNA's assistant in the tab in front, dimmed on the sign-in page,
+    and its orb beside XUNA's own (in a white-labelled workspace too).
 - **Ask the web team to keep the current workspace per tab** (`docs/multi-tab-workspaces.md`).
   Browser users have the same problem today, and the desktop's hook could then go.
 
