@@ -8,7 +8,7 @@ const { buildAppMenu, attachContextMenu } = require('./menus');
 const { createUpdates } = require('./updates');
 const { titleBarColor, macAppViewBounds } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
-const { MAX_TABS, partitionFor, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab } = require('./workspace-tabs');
+const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab } = require('./workspace-tabs');
 
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
 const APP_URL = (!app.isPackaged && process.env.XUNA_APP_URL) || config.APP_URL;
@@ -347,11 +347,9 @@ function addWorkspaceTabs(win, webPreferences) {
     pageOf(state.active)?.focus();
   };
 
-  // Opens a tab's XUNA page in a hidden view below the strip, signed in with the tab's own profile.
+  // Opens a tab's XUNA page in a hidden view below the strip. Every tab shares the one sign-in.
   const openPage = (id) => {
-    const partition = partitionFor(id);
-    if (partition) guardSession(session.fromPartition(partition));
-    const view = new WebContentsView({ webPreferences: partition ? { ...webPreferences, partition } : webPreferences });
+    const view = new WebContentsView({ webPreferences });
     const page = view.webContents;
     view.setBackgroundColor(backgroundColor());
     view.setVisible(false);

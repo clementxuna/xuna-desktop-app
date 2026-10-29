@@ -5,7 +5,6 @@ const assert = require('node:assert/strict');
 const {
   MAX_TABS,
   MAX_NAME_LENGTH,
-  partitionFor,
   labelFor,
   readTabs,
   addTab,
@@ -13,18 +12,14 @@ const {
   selectTab,
   cycleTab,
   renameTab,
+  setTabMemory,
+  nameWorkspaces,
+  tabShowing,
 } = require('../src/workspace-tabs');
+const { seedFor, applyWrite, ACTIVE_WORKSPACE_KEY } = require('../src/workspace-memory');
 
-const tabs = (...ids) => ids.map((id) => ({ id, name: null }));
-
-test('tab 1 signs in with the profile the app always used, so nobody is signed out', () => {
-  assert.equal(partitionFor('workspace-1'), undefined);
-});
-
-test('every other tab signs in with its own persistent profile', () => {
-  assert.equal(partitionFor('workspace-2'), 'persist:workspace-2');
-  assert.equal(partitionFor('workspace-9'), 'persist:workspace-9');
-});
+const tab = (id, fields = {}) => ({ id, name: null, memory: null, workspaceName: null, ...fields });
+const tabs = (...ids) => ids.map((id) => tab(id));
 
 test('a first run, a missing file or a malformed one opens tab 1 alone', () => {
   for (const saved of [null, undefined, 'tabs', 42, {}, { tabs: 'workspace-2' }, { tabs: [] }]) {
@@ -34,10 +29,29 @@ test('a first run, a missing file or a malformed one opens tab 1 alone', () => {
 
 test('saved tabs come back in their order, with their names and the one that was shown', () => {
   const saved = { tabs: [{ id: 'workspace-1', name: 'Acme' }, { id: 'workspace-3', name: null }], active: 'workspace-3' };
-  assert.deepEqual(readTabs(saved), saved);
+  assert.deepEqual(readTabs(saved), { tabs: [tab('workspace-1', { name: 'Acme' }), tab('workspace-3')], active: 'workspace-3' });
 });
 
-test('saved entries that could name a profile outside the tabs are dropped', () => {
+test('a tab saved before tabs kept their workspace has none, so it starts from what the profile had', () => {
+  const { tabs: [first] } = readTabs({ tabs: [{ id: 'workspace-2', name: 'Acme' }] });
+  assert.equal(first.memory, null);
+  assert.equal(first.workspaceName, null);
+});
+
+test("a tab's workspace and the workspace's name survive saving and loading", () => {
+  const state = addTab(readTabs(null), { memory: seedFor('ws-2'), workspaceName: 'Acme Dental' });
+  const reloaded = readTabs(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(reloaded, state);
+  assert.deepEqual(reloaded.tabs[1].memory, seedFor('ws-2'));
+});
+
+test('a saved workspace name is kept short, and anything else is dropped', () => {
+  const { tabs: [first, second] } = readTabs({ tabs: [{ id: 'workspace-1', workspaceName: 'x'.repeat(80) }, { id: 'workspace-2', workspaceName: 42 }] });
+  assert.equal(first.workspaceName.length, 64);
+  assert.equal(second.workspaceName, null);
+});
+
+test('saved entries with an id outside the tabs are dropped', () => {
   const saved = {
     tabs: [
       { id: 'workspace-0' },
@@ -59,22 +73,28 @@ test('a saved name is tidied, and a blank one falls back to the default', () => 
   assert.equal(second.name, null);
 });
 
-test("a tab's default name is its profile's number", () => {
-  assert.equal(labelFor({ id: 'workspace-1', name: null }), 'Workspace 1');
-  assert.equal(labelFor({ id: 'workspace-4', name: null }), 'Workspace 4');
-  assert.equal(labelFor({ id: 'workspace-4', name: 'Acme' }), 'Acme');
+test("a tab is called by the name typed for it, else its workspace's name, else its number", () => {
+  assert.equal(labelFor(tab('workspace-4', { name: 'Front desk', workspaceName: 'Acme' })), 'Front desk');
+  assert.equal(labelFor(tab('workspace-4', { workspaceName: 'Acme' })), 'Acme');
+  assert.equal(labelFor(tab('workspace-1')), 'Workspace 1');
+  assert.equal(labelFor(tab('workspace-4')), 'Workspace 4');
 });
 
-test('a new tab goes after the others, is shown, and takes the lowest free profile', () => {
+test('a new tab goes after the others, is shown, and takes the lowest free number', () => {
   assert.deepEqual(addTab({ tabs: tabs('workspace-1'), active: 'workspace-1' }), { tabs: tabs('workspace-1', 'workspace-2'), active: 'workspace-2' });
-  // workspace-2 was closed: its profile, and the sign-in in it, is reused.
   assert.deepEqual(addTab({ tabs: tabs('workspace-1', 'workspace-3'), active: 'workspace-1' }), {
     tabs: tabs('workspace-1', 'workspace-3', 'workspace-2'),
     active: 'workspace-2',
   });
 });
 
-test('tab 1 can be closed, and a new tab then picks its profile back up', () => {
+test('a new tab can open with a workspace picked for it', () => {
+  const state = addTab(readTabs(null), { memory: seedFor('ws-7'), workspaceName: 'Acme' });
+  assert.deepEqual(state.tabs[1], tab('workspace-2', { memory: seedFor('ws-7'), workspaceName: 'Acme' }));
+  assert.equal(state.active, 'workspace-2');
+});
+
+test('tab 1 can be closed, and a new tab then takes its number back', () => {
   const state = closeTab({ tabs: tabs('workspace-1', 'workspace-2'), active: 'workspace-1' }, 'workspace-1');
   assert.deepEqual(state, { tabs: tabs('workspace-2'), active: 'workspace-2' });
   assert.equal(addTab(state).active, 'workspace-1');
@@ -121,8 +141,38 @@ test('stepping through the tabs wraps around at either end', () => {
 test('renaming changes only that tab, keeps names short, and an empty name restores the default', () => {
   const state = { tabs: tabs('workspace-1', 'workspace-2'), active: 'workspace-1' };
   const renamed = renameTab(state, 'workspace-2', '  Acme  ');
-  assert.deepEqual(renamed.tabs, [{ id: 'workspace-1', name: null }, { id: 'workspace-2', name: 'Acme' }]);
+  assert.deepEqual(renamed.tabs, [tab('workspace-1'), tab('workspace-2', { name: 'Acme' })]);
   assert.equal(renameTab(state, 'workspace-1', 'x'.repeat(80)).tabs[0].name.length, MAX_NAME_LENGTH);
   assert.equal(renameTab(renamed, 'workspace-2', '').tabs[1].name, null);
   assert.equal(renameTab(renamed, 'workspace-2', 42).tabs[1].name, null);
+});
+
+test("a tab's workspace memory changes only for that tab", () => {
+  const state = { tabs: tabs('workspace-1', 'workspace-2'), active: 'workspace-1' };
+  const next = setTabMemory(state, 'workspace-2', seedFor('ws-5'));
+  assert.deepEqual(next.tabs[0], tab('workspace-1'));
+  assert.deepEqual(next.tabs[1].memory, seedFor('ws-5'));
+  assert.equal(setTabMemory(state, 'workspace-9', seedFor('ws-5')), state);
+});
+
+test("each tab takes the name of the workspace it shows, and the others keep theirs", () => {
+  const state = {
+    tabs: [
+      tab('workspace-1', { memory: seedFor('ws-1'), workspaceName: 'Old name' }),
+      tab('workspace-2', { memory: seedFor('ws-2'), workspaceName: 'Kept' }),
+      tab('workspace-3'),
+    ],
+    active: 'workspace-1',
+  };
+  const named = nameWorkspaces(state, new Map([['ws-1', 'Acme'], ['ws-9', 'Elsewhere']]));
+  assert.deepEqual(named.tabs.map((entry) => entry.workspaceName), ['Acme', 'Kept', null]);
+});
+
+test('the tab showing a workspace can be found, the one it last showed included', () => {
+  const signedOut = applyWrite(seedFor('ws-2'), ACTIVE_WORKSPACE_KEY, null); // remembered only
+  const state = { tabs: [tab('workspace-1', { memory: seedFor('ws-1') }), tab('workspace-2', { memory: signedOut })], active: 'workspace-1' };
+  assert.equal(tabShowing(state, 'ws-1'), 'workspace-1');
+  assert.equal(tabShowing(state, 'ws-2'), 'workspace-2');
+  assert.equal(tabShowing(state, 'ws-3'), null);
+  assert.equal(tabShowing({ tabs: tabs('workspace-1'), active: 'workspace-1' }, null), null); // a tab with no workspace yet
 });
