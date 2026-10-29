@@ -173,7 +173,9 @@ function crossIcon() {
 }
 
 // Dragging a tab along the strip: it follows the pointer, the tabs it passes move aside, and where it is
-// let go it moves to (see moveTab in src/workspace-tabs.js). A press that barely moves is a click.
+// let go it moves to (see moveTab in src/workspace-tabs.js). A press that barely moves is a click. The
+// pointer isn't captured, since a captured press sends its click to the tab instead of its name, which
+// then never shows the tab; the page follows the press instead, for as long as the button is down.
 function startDrag(event, id, item) {
   if (event.button !== 0 || renaming) return;
   const items = [...list.children];
@@ -183,10 +185,9 @@ function startDrag(event, id, item) {
   });
   const from = items.indexOf(item);
   dragging = { id, item, items, from, to: from, centers, startX: event.clientX, width: item.getBoundingClientRect().width, moved: false };
-  item.setPointerCapture(event.pointerId);
-  item.addEventListener('pointermove', dragMove);
-  item.addEventListener('pointerup', dragEnd);
-  item.addEventListener('pointercancel', dragEnd);
+  window.addEventListener('pointermove', dragMove);
+  window.addEventListener('pointerup', dragEnd);
+  window.addEventListener('pointercancel', dragEnd);
 }
 
 function dragMove(event) {
@@ -206,11 +207,10 @@ function dragMove(event) {
 function dragEnd() {
   const ended = dragging;
   dragging = null;
-  if (!ended) return;
-  ended.item.removeEventListener('pointermove', dragMove);
-  ended.item.removeEventListener('pointerup', dragEnd);
-  ended.item.removeEventListener('pointercancel', dragEnd);
-  if (!ended.moved) return; // a click, which the tab's name handles
+  window.removeEventListener('pointermove', dragMove);
+  window.removeEventListener('pointerup', dragEnd);
+  window.removeEventListener('pointercancel', dragEnd);
+  if (!ended?.moved) return; // a click, which the tab's name handles
   clicksIgnoredUntil = Date.now() + 100;
   if (ended.to !== ended.from) bridge.move(ended.id, ended.to); // the tabs come back in their new order
   else render();
