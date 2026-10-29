@@ -344,13 +344,15 @@ function addWorkspaceTabs(win, webPreferences) {
   };
 
   // Places the views for the tab in front (macWindowLayout in src/title-bar.js), moves the three buttons
-  // with the bar, and tells each tab's page the room made in its header. True when the bar's mode or
-  // height changed, which the strip then has to be told.
+  // with the bar, and tells each tab's page the room made in its header. The + panel closes when the
+  // bar changes under it, which would leave it out of place and its top over the bar. True when the
+  // bar's mode or height changed, which the strip then has to be told.
   const arrange = () => {
     if (win.isDestroyed()) return false;
     const [width, height] = win.getContentSize();
     const before = bar;
-    bar = macWindowLayout({ width, height, fullScreen: win.isFullScreen(), tabCount: state.tabs.length, header: headers.get(state.active) ?? null, cluster });
+    const zoom = pageOf(state.active)?.getZoomFactor() ?? 1;
+    bar = macWindowLayout({ width, height, fullScreen: win.isFullScreen(), tabCount: state.tabs.length, header: headers.get(state.active) ?? null, cluster, zoom });
     for (const { view } of views.values()) view.setBounds(bar.page);
     if (bar.strip) strip.setBounds(bar.strip);
     strip.setVisible(Boolean(bar.strip));
@@ -358,6 +360,7 @@ function addWorkspaceTabs(win, webPreferences) {
       lightsAt = bar.trafficLights;
       win.setWindowButtonPosition(lightsAt);
     }
+    if (before && (before.mode !== bar.mode || before.barBottom !== bar.barBottom)) panel.close();
     sendRows();
     return before?.mode !== bar.mode || before?.barHeight !== bar.barHeight;
   };
@@ -448,15 +451,22 @@ function addWorkspaceTabs(win, webPreferences) {
     views.set(id, { view, page });
     // In one row XUNA's header makes room for the strip (src/one-row.css), once its page is told how much.
     page.on('dom-ready', () => {
-      page.insertCSS(ONE_ROW_CSS).catch(() => {});
+      if (policy.isAppPage(page.getURL())) page.insertCSS(ONE_ROW_CSS).catch(() => {});
       rowsSent.delete(page);
       sendRows();
     });
-    // Back and Forward follow the page in front.
+    // Back and Forward follow the page in front. A page outside XUNA's app, such as the offline page or
+    // a payment provider's, has no XUNA header to be the bar, and says nothing about one.
     const onNavigated = () => {
       if (pageOf(state.active) === page) sendToStrip();
     };
-    page.on('did-navigate', onNavigated);
+    page.on('did-navigate', (_event, url) => {
+      if (!policy.isAppPage(url)) {
+        headers.delete(id);
+        if (pageOf(state.active) === page) arrange();
+      }
+      onNavigated();
+    });
     page.on('did-navigate-in-page', onNavigated);
     // The window takes the shown page's title, as it did when the page was its own (the Window menu shows it).
     page.on('page-title-updated', (_event, title) => {
