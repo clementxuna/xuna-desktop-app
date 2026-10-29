@@ -51,7 +51,6 @@
     }
     html, body { margin: 0; background: transparent; }
     .strip { position: fixed; top: 0; left: 0; right: 0; height: var(--bar-height); app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 var(--lights); box-sizing: border-box; background: var(--bar-background); box-shadow: inset 0 -1px var(--bar-border); font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: var(--text); user-select: none; }
-    .strip > * { transition: opacity 150ms ease; }
     .history { display: flex; flex: none; gap: 2px; margin-inline-end: auto; }
     .tabs { display: flex; gap: 2px; min-width: 0; }
     .tab, .add, .ask-ai, .history button { app-region: no-drag; -webkit-app-region: no-drag; }
@@ -78,11 +77,14 @@
     :root[data-mode="one-row"] .history { margin-inline-end: 0; }
     :root[data-mode="one-row"] .ask-ai { display: none; }
 
-    /* The window isn't in front: the controls fade, as macOS's own toolbars do. */
+    /* The window isn't in front: the controls fade, as macOS's own toolbars do, at once, as XUNA's header
+       beside them does in one row (src/one-row.css). */
     :root[data-inactive] .strip > * { opacity: 0.5; }
 
     /* Something covers XUNA's page, a dialog's blurred backdrop say: in one row the bar looks covered too
-       (src/preload.js reports how the cover looks), and takes no clicks until it goes. */
+       (src/preload.js reports how the cover looks), losing its bottom line as XUNA's header loses its own
+       under the blur, and takes no clicks until it goes. */
+    :root[data-covered] .strip { box-shadow: none; }
     :root[data-covered] .strip > * { filter: var(--cover-filter, none); pointer-events: none; }
     :root[data-covered] .strip::after { content: ''; position: absolute; inset: 0; background: var(--cover-tint, transparent); pointer-events: none; }
 

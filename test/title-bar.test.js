@@ -184,6 +184,12 @@ test("in one row the strip's controls sit at its left, against XUNA's header, an
 
 test("with the window in the background the strip's controls fade, as macOS's own toolbars do", () => {
   assert.match(cssRule(stripHtml(), ':root[data-inactive] .strip > *'), /opacity:\s*0\.5/);
+  // At once, as XUNA's header fades beside them in one row (src/one-row.css), so the two stay in step.
+  assert.doesNotMatch(cssRule(stripHtml(), '.strip > *'), /transition/);
+});
+
+test("while XUNA's page is covered the strip's bottom line goes too, as the cover blurs XUNA's own away", () => {
+  assert.match(cssRule(stripHtml(), ':root[data-covered] .strip'), /box-shadow:\s*none/);
 });
 
 test("while something covers XUNA's page, a dialog's backdrop say, the strip looks covered as well and takes no clicks", () => {
