@@ -4,7 +4,19 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macAppViewBounds, PICKER_PANEL_WIDTH, pickerPanelBounds, askAiState } = require('../src/title-bar');
+const {
+  MAC_TITLE_STRIP_HEIGHT,
+  MAC_TRAFFIC_LIGHTS,
+  ONE_ROW_MIN_DRAG,
+  titleBarColor,
+  macAppViewBounds,
+  macWindowLayout,
+  headerReport,
+  clusterReport,
+  PICKER_PANEL_WIDTH,
+  pickerPanelBounds,
+  askAiState,
+} = require('../src/title-bar');
 const { BACKGROUND } = require('../src/config');
 
 test("the title bar uses the black and white of the app's header", () => {
@@ -60,6 +72,83 @@ test('a window smaller than the strip gives the page no height rather than a neg
   assert.deepEqual(macAppViewBounds({ width: 400, height: 10, fullScreen: false }), { x: 0, y: 40, width: 400, height: 0 });
 });
 
+// XUNA's header as a tab's page reports it (see src/preload.js): 56 CSS px tall, its contents needing 700.
+const xunaHeader = (fields = {}) => ({ height: 56, minWidth: 700, innerWidth: 1280, background: 'rgb(255, 255, 255)', border: 'rgb(233, 234, 235)', cover: null, ...fields });
+
+test("in one row XUNA's page fills the window, and the strip takes the left end of XUNA's header, the three buttons in its middle", () => {
+  const layout = macWindowLayout({ width: 1280, height: 820, fullScreen: false, tabCount: 1, header: xunaHeader(), cluster: { natural: 184, minimum: 184 } });
+  assert.deepEqual(layout, {
+    mode: 'one-row',
+    page: { x: 0, y: 0, width: 1280, height: 820 },
+    strip: { x: 0, y: 0, width: 184, height: 56 },
+    trafficLights: { x: 20, y: 20 },
+    inset: 184,
+    barHeight: 56,
+    barBottom: 56,
+  });
+});
+
+test("zooming XUNA's page scales its header, so the bar grows with it, and the room made in it is in the page's own pixels", () => {
+  // At 125% the page is 1024 CSS px wide in a 1280-wide window.
+  const layout = macWindowLayout({ width: 1280, height: 820, fullScreen: false, header: xunaHeader({ innerWidth: 1024 }), cluster: { natural: 184, minimum: 184 } });
+  assert.equal(layout.barHeight, 70);
+  assert.deepEqual(layout.strip, { x: 0, y: 0, width: 184, height: 70 });
+  assert.deepEqual(layout.trafficLights, { x: 20, y: 27 });
+  assert.equal(layout.inset, 147.2);
+});
+
+test("tabs that want more room than XUNA's header can spare shrink, keeping 64px of the header free to drag the window by", () => {
+  assert.equal(ONE_ROW_MIN_DRAG, 64);
+  const cluster = { natural: 600, minimum: 300 };
+  const header = xunaHeader({ minWidth: 600 });
+  assert.equal(macWindowLayout({ width: 1280, height: 820, fullScreen: false, tabCount: 4, header, cluster }).strip.width, 600);
+  const narrow = macWindowLayout({ width: 1000, height: 820, fullScreen: false, tabCount: 4, header: { ...header, innerWidth: 1000 }, cluster });
+  assert.equal(narrow.mode, 'one-row');
+  assert.equal(narrow.strip.width, 336); // 1000 − 600 − 64
+});
+
+test("the strip comes back when even the smallest tabs won't fit, on a page without XUNA's header, and until the strip has measured itself", () => {
+  const strip = { mode: 'strip', page: { x: 0, y: 40, width: 900, height: 780 }, strip: { x: 0, y: 0, width: 900, height: 40 }, trafficLights: { x: 14, y: 12 }, inset: 0, barHeight: 40, barBottom: 40 };
+  const cluster = { natural: 600, minimum: 300 };
+  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, tabCount: 4, header: xunaHeader({ minWidth: 600, innerWidth: 900 }), cluster }), strip);
+  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, header: null, cluster }), strip);
+  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, header: xunaHeader({ innerWidth: 900 }), cluster: null }), strip);
+  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, header: xunaHeader({ innerWidth: 900 }), cluster: { natural: 184, minimum: 184 }, oneRow: false }), strip);
+});
+
+test("full screen keeps today's rule, as macOS shows the three buttons there only with the menu bar: no bar with one tab, the strip with more", () => {
+  const header = xunaHeader({ innerWidth: 1512 });
+  const cluster = { natural: 184, minimum: 184 };
+  const one = macWindowLayout({ width: 1512, height: 982, fullScreen: true, tabCount: 1, header, cluster });
+  assert.deepEqual(one, { mode: 'strip', page: { x: 0, y: 0, width: 1512, height: 982 }, strip: null, trafficLights: { x: 14, y: 12 }, inset: 0, barHeight: 40, barBottom: 0 });
+  const two = macWindowLayout({ width: 1512, height: 982, fullScreen: true, tabCount: 2, header, cluster });
+  assert.equal(two.mode, 'strip');
+  assert.deepEqual(two.strip, { x: 0, y: 0, width: 1512, height: 40 });
+  assert.deepEqual(two.page, { x: 0, y: 40, width: 1512, height: 942 });
+});
+
+test("what a page says about XUNA's header is taken only when it is plausible, keeping only plain colours and filters", () => {
+  assert.deepEqual(headerReport(xunaHeader()), xunaHeader());
+  const cover = { filter: 'blur(16px) saturate(1.25)', tint: 'rgba(0, 0, 0, 0.1)' };
+  assert.deepEqual(headerReport(xunaHeader({ cover })).cover, cover);
+  assert.equal(headerReport(xunaHeader({ height: 120 })), null);
+  assert.equal(headerReport(xunaHeader({ minWidth: Number.NaN })), null);
+  assert.equal(headerReport(xunaHeader({ innerWidth: 50 })), null);
+  assert.equal(headerReport(null), null);
+  const odd = headerReport(xunaHeader({ background: 'url(https://example.com/x.png)', border: 'red; position: fixed', cover: { filter: 'url(#x)', tint: 'blue' } }));
+  assert.equal(odd.background, null);
+  assert.equal(odd.border, null);
+  assert.deepEqual(odd.cover, { filter: null, tint: 'blue' });
+});
+
+test("the strip's measure of its tabs is taken only when it makes sense", () => {
+  assert.deepEqual(clusterReport({ natural: 400, minimum: 250 }), { natural: 400, minimum: 250 });
+  assert.equal(clusterReport({ natural: 200, minimum: 250 }), null);
+  assert.equal(clusterReport({ natural: 400, minimum: 0 }), null);
+  assert.equal(clusterReport({ natural: 9000, minimum: 250 }), null);
+  assert.equal(clusterReport('400'), null);
+});
+
 const stripHtml = () => fs.readFileSync(path.join(__dirname, '..', 'src', 'title-strip.html'), 'utf8');
 const cssRule = (html, selector) => html.match(new RegExp(`(?:^|\\s)${selector.replaceAll('.', '\\.')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
 
@@ -101,6 +190,13 @@ test('the workspace panel stays inside a narrow window, and no taller than the s
   const anchor = { x: 360, y: 4, width: 20, height: 20 };
   assert.deepEqual(pickerPanelBounds({ anchor, width: 400, height: 500, panelHeight: 300 }), { x: 0, y: 28, width: 400, height: 320 });
   assert.equal(pickerPanelBounds({ anchor, width: 1280, height: 200, panelHeight: 300 }).height, 172);
+});
+
+test('in one row the workspace panel opens below the bar, not over it, where its top would drag the window', () => {
+  const anchor = { x: 150, y: 14, width: 28, height: 28 }; // the + button in a 56px row
+  const bounds = pickerPanelBounds({ anchor, width: 1280, height: 820, panelHeight: 300, barBottom: 56 });
+  assert.equal(bounds.y, 56);
+  assert.equal(bounds.height, 320);
 });
 
 test("Ask AI follows XUNA's own button in the tab in front: there or not, open or not, in the workspace's colours", () => {
