@@ -10,15 +10,15 @@ function showAbout() {
 }
 
 // The Mac Window menu, with the main window's workspace tabs (see addWorkspaceTabs in src/main.js):
-// ⌘T opens one, ⌘W closes the one shown, ⌘1 to ⌘9 show one and ⌃Tab steps through them, as in Safari.
-// tabs is null while no main window is open.
+// ⌘T opens the + button's menu of workspaces, ⌘W closes the tab shown, ⌘1 to ⌘9 show one and ⌃Tab
+// steps through them, as in Safari. tabs is null while no main window is open.
 function macWindowMenu(tabs) {
   const items = [{ role: 'minimize' }, { role: 'zoom' }];
   if (tabs) {
     const several = tabs.list.length > 1;
     items.push(
       { type: 'separator' },
-      { label: 'New Workspace Tab', accelerator: 'Cmd+T', enabled: tabs.canAdd, click: () => tabs.add() },
+      { label: 'Open Workspace…', accelerator: 'Cmd+T', click: () => tabs.pick() },
       { label: 'Close Workspace Tab', accelerator: 'Cmd+W', enabled: several, click: () => tabs.close() },
       { label: 'Rename Workspace Tab…', enabled: several, click: () => tabs.startRename() },
       { type: 'separator' },

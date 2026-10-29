@@ -2,13 +2,13 @@
 
 // Draws the workspace tab buttons at the right end of the Mac title strip (src/title-strip.html) from
 // what the main process sends (see addWorkspaceTabs in src/main.js), and passes their clicks back
-// through src/title-strip-preload.js. With one tab open only the + button shows. Double-clicking a tab
-// renames it.
+// through src/title-strip-preload.js. With one tab open only the + button shows; it opens a menu of the
+// account's workspaces, below it. Double-clicking a tab renames it.
 
 const bridge = window.workspaceTabs;
 const list = document.querySelector('.tabs');
 const addButton = document.querySelector('.add');
-let current = { tabs: [], canAdd: false, dark: false };
+let current = { tabs: [], dark: false };
 let renaming = null; // the tab whose name is being typed; it is redrawn once that ends
 
 bridge.onChange((state) => {
@@ -17,10 +17,16 @@ bridge.onChange((state) => {
   if (!renaming) render();
 });
 bridge.onRename(startRename);
-addButton.addEventListener('click', () => bridge.add());
+bridge.onPick(pick); // ⌘T
+addButton.addEventListener('click', pick);
+
+// The main process pops the menu up at the + button, so it is told where the button is.
+function pick() {
+  const { x, y, width, height } = addButton.getBoundingClientRect();
+  bridge.add({ x, y, width, height });
+}
 
 function render() {
-  addButton.hidden = !current.canAdd;
   list.replaceChildren(...(current.tabs.length > 1 ? current.tabs.map(tabButtons) : []));
 }
 
@@ -67,7 +73,7 @@ function crossIcon() {
 }
 
 // Swaps the tab's name for a text field. Enter or clicking away keeps what was typed (an empty name
-// brings back "Workspace N"); Escape keeps the old name.
+// brings back the workspace's name); Escape keeps the old name.
 function startRename(id) {
   const tab = current.tabs.find((entry) => entry.id === id);
   const select = [...list.querySelectorAll('.tab')].find((item) => item.dataset.id === id)?.querySelector('.select');

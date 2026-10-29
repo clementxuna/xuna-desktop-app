@@ -1,20 +1,36 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, Menu, Notification, WebContentsView, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, WebContentsView, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell, webContents } = require('electron');
 const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
 const { buildAppMenu, attachContextMenu } = require('./menus');
 const { createUpdates } = require('./updates');
 const { titleBarColor, macAppViewBounds } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
-const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab } = require('./workspace-tabs');
+const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
+const { ACTIVE_WORKSPACE_KEY, TAB_KEY_PREFIXES, readMemory, applyWrite, workspaceOf, seedFor, createIsolationGuard } = require('./workspace-memory');
+const { parseBootstrap, pickerItems } = require('./workspace-picker');
 
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
 const APP_URL = (!app.isPackaged && process.env.XUNA_APP_URL) || config.APP_URL;
 const policy = createPolicy({ appUrl: APP_URL, trustedDomain: config.TRUSTED_DOMAIN });
 const IS_MAC = process.platform === 'darwin';
 const IS_WINDOWS = process.platform === 'win32';
+// The workspace tabs are Mac only. XUNA_WORKSPACE_TABS=1 shows them in a Windows development run too,
+// under Windows' own title bar, so they can be worked on there.
+const USE_TABS = IS_MAC || (!app.isPackaged && process.env.XUNA_WORKSPACE_TABS === '1');
+// macOS 14 and later draw section headings in menus.
+const MENU_HEADINGS = IS_MAC && Number(process.getSystemVersion().split('.')[0]) >= 14;
+// Every XUNA page: the main window's on Windows, each workspace tab's, and with tabs the pop-ups too.
+const XUNA_PAGE_PREFERENCES = {
+  contextIsolation: true,
+  sandbox: true,
+  nodeIntegration: false,
+  spellcheck: true,
+  preload: path.join(__dirname, 'preload.js'),
+};
 
 // Development runs get their own profile, so they neither trip an installed copy's single-instance lock nor share its sign-in.
 if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} Dev`));
@@ -34,6 +50,11 @@ let quitting = false; // a quit the XUNA page is holding up, to finish once the 
 let afterQuit = null; // what a restart for an update does once nothing can stop the quit (Windows; see src/updates.js)
 let updates = null; // installed copies' updates (see startAutoUpdates)
 let updateNotification = null; // held, so a click on it still arrives
+// The account's workspaces for the + menu (src/workspace-picker.js): undefined until XUNA has listed them,
+// null once it has signed out.
+let workspaceList;
+const isolationGuard = createIsolationGuard();
+let tabsTurnedOff = false; // the guard tripped (see turnOffTabs)
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -57,7 +78,16 @@ if (!app.requestSingleInstanceLock()) {
     titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
     ipcMain.on('xuna:page-appearance', onPageAppearance);
     ipcMain.on('xuna:workspace-tab-request', onWorkspaceTabRequest);
+    ipcMain.on('xuna:workspace-memory', onWorkspaceMemoryRequest);
+    ipcMain.on('xuna:workspace-memory-init', (event, values) => fromTabPage(event, (tabs, id) => tabs.adopt(id, values)));
+    ipcMain.on('xuna:workspace-memory-write', onWorkspaceMemoryWrite);
+    ipcMain.on('xuna:workspace-memory-read', (event) => fromTabPage(event, () => isolationGuard.pageRead(event.sender.id)));
+    ipcMain.on('xuna:workspace-list', onWorkspaceList);
     guardSession(session.defaultSession);
+    if (USE_TABS) {
+      removeOldTabProfiles();
+      watchSignInChecks();
+    }
     updateAppMenu(null);
     mainWindow = createMainWindow();
     app.on('activate', showMainWindow); // clicking the Dock icon on macOS
@@ -130,7 +160,7 @@ function setTitleBarColor(color) {
   titleBar = color;
   for (const win of BrowserWindow.getAllWindows()) {
     if (IS_WINDOWS) win.setAccentColor(color);
-    else workspaceTabs.get(win)?.setColor(color); // the Mac strip shows the window's background
+    workspaceTabs.get(win)?.setColor(color); // the tab strip shows the window's background
   }
 }
 
@@ -139,7 +169,10 @@ function harden(contents) {
   contents.setWindowOpenHandler((details) => {
     const verdict = policy.windowOpen({ ...details, openerUrl: contents.getURL() });
     if (verdict === 'in-app') {
-      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, backgroundColor: backgroundColor(), ...titleBarOptions() } };
+      // With workspace tabs a pop-up gets the XUNA preload too, so a XUNA page in it (an OAuth return,
+      // say) reads the workspace of the tab that opened it, not the profile's shared one.
+      const popupPreferences = USE_TABS ? { webPreferences: XUNA_PAGE_PREFERENCES } : {};
+      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, backgroundColor: backgroundColor(), ...titleBarOptions(), ...popupPreferences } };
     }
     if (verdict === 'external') openExternal(details.url);
     return { action: 'deny' };
@@ -204,13 +237,6 @@ function createMainWindow() {
   const workAreas = screen.getAllDisplays().map((display) => display.workArea);
   const { bounds, maximized } = chooseBounds(readState(stateFile), workAreas, { width: 1280, height: 820 });
 
-  const appPreferences = {
-    contextIsolation: true,
-    sandbox: true,
-    nodeIntegration: false,
-    spellcheck: true,
-    preload: path.join(__dirname, 'preload.js'),
-  };
   const stripPreferences = {
     contextIsolation: true,
     sandbox: true,
@@ -222,14 +248,14 @@ function createMainWindow() {
     minWidth: 400,
     minHeight: 500,
     title: 'XUNA AI',
-    backgroundColor: (IS_MAC && titleBar) || backgroundColor(),
+    backgroundColor: (USE_TABS && titleBar) || backgroundColor(),
     ...titleBarOptions(),
     ...(IS_MAC ? { titleBarStyle: 'hidden' } : {}),
     autoHideMenuBar: true,
     // On Mac the window's own page is the title strip, with the workspace tab buttons; XUNA gets views below it.
-    webPreferences: IS_MAC ? stripPreferences : appPreferences,
+    webPreferences: USE_TABS ? stripPreferences : XUNA_PAGE_PREFERENCES,
   });
-  if (IS_MAC) addWorkspaceTabs(win, appPreferences);
+  if (USE_TABS) addWorkspaceTabs(win, XUNA_PAGE_PREFERENCES);
   else showXuna(win.webContents);
   if (maximized) win.maximize();
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
@@ -278,10 +304,11 @@ function showXuna(contents) {
 // setTitleBarColor keeps in step with the page shown. src/title-strip.html, the window's own page, makes
 // the strip drag the window and draws the workspace tab buttons at its right end.
 //
-// Each workspace tab is a XUNA page in a view below the strip, signed in with the tab's own profile (see
-// src/workspace-tabs.js). Only the shown tab's view is visible; the others keep running, so a call or a
-// draft carries on while another workspace is in front. The tabs, their names and the one shown are
-// saved, and the window opens with them again.
+// Each workspace tab is a XUNA page in a view below the strip. The tabs share one sign-in, and each keeps
+// its own workspace (see src/workspace-memory.js). Only the shown tab's view is visible; the others keep
+// running, so a call or a draft carries on while another workspace is in front. The tabs, their names,
+// their workspaces and the one shown are saved, and the window opens with them again. The + button opens
+// a menu of the account's workspaces (src/workspace-picker.js).
 function addWorkspaceTabs(win, webPreferences) {
   const stateFile = path.join(app.getPath('userData'), 'workspace-tabs.json');
   let state = readTabs(readState(stateFile));
@@ -303,7 +330,6 @@ function addWorkspaceTabs(win, webPreferences) {
   const sendToStrip = () => {
     win.webContents.send('xuna:workspace-tabs', {
       tabs: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
-      canAdd: state.tabs.length < MAX_TABS,
       dark: titleBar === config.BACKGROUND.dark,
     });
   };
@@ -312,8 +338,7 @@ function addWorkspaceTabs(win, webPreferences) {
   // in front, so pressing it in a sign-in pop-up never closes the tab behind.
   const menu = () => ({
     list: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
-    canAdd: state.tabs.length < MAX_TABS,
-    add: () => tabs.add(),
+    pick: () => win.webContents.send('xuna:workspace-picker-open'), // the strip opens it under its + button
     close: () => {
       if (BrowserWindow.getFocusedWindow() === win) tabs.close(state.active);
     },
@@ -387,8 +412,19 @@ function addWorkspaceTabs(win, webPreferences) {
     else if (!win.isDestroyed()) win.close();
   };
 
+  // A tab's page wrote to its workspace memory: the tab takes its workspace's name.
+  const updateMemory = (id, memory) => {
+    state = setTabMemory(state, id, memory);
+    if (Array.isArray(workspaceList)) state = nameWorkspaces(state, namesOf(workspaceList));
+    refresh();
+  };
+
   const tabs = {
     has: (contents) => [...views.values()].some((entry) => entry.page === contents),
+    idOf: (contents) => [...views].find(([, entry]) => entry.page === contents)?.[0] ?? null,
+    activeId: () => state.active,
+    count: () => state.tabs.length,
+    memoryOf: (id) => state.tabs.find((tab) => tab.id === id)?.memory ?? null,
     activePage: () => pageOf(state.active),
     setColor: (color) => {
       win.setBackgroundColor(color);
@@ -396,9 +432,43 @@ function addWorkspaceTabs(win, webPreferences) {
     },
     select: (id) => show(selectTab(state, id)),
     cycle: (step) => show(cycleTab(state, step)),
-    add: () => {
-      const next = addTab(state);
+    // A tab with no memory yet takes what its page found in the profile's storage, once.
+    adopt: (id, values) => {
+      const tab = state.tabs.find((entry) => entry.id === id);
+      const memory = readMemory({ values, remembered: values?.[ACTIVE_WORKSPACE_KEY] });
+      if (tab && !tab.memory && memory) updateMemory(id, memory);
+    },
+    remember: (id, key, value) => {
+      const tab = state.tabs.find((entry) => entry.id === id);
+      if (tab) updateMemory(id, applyWrite(tab.memory, key, value));
+    },
+    nameAll: (names) => {
+      state = nameWorkspaces(state, names);
+      refresh();
+    },
+    // The + menu, under the + button: anchor is its rectangle in the strip.
+    pick: (anchor) => {
+      const openTabs = new Map();
+      for (const tab of state.tabs) {
+        const workspaceId = workspaceOf(tab.memory);
+        if (workspaceId && !openTabs.has(workspaceId)) openTabs.set(workspaceId, tab.id);
+      }
+      const items = tabsTurnedOff
+        ? [{ kind: 'note', label: 'Workspace tabs are off. An update to XUNA AI will turn them back on.' }]
+        : pickerItems({ workspaces: workspaceList, openTabs, canOpenMore: state.tabs.length < MAX_TABS });
+      const position = anchor ? { x: Math.round(anchor.x), y: Math.round(anchor.y + anchor.height) } : {};
+      pickerMenu(items, { select: (id) => tabs.select(id), open: (workspaceId, name) => tabs.openWorkspace(workspaceId, name) }).popup({ window: win, ...position });
+    },
+    // A workspace already open in a tab is shown there; otherwise it opens in a new tab, as a deliberate
+    // choice, the way a click in XUNA's own switcher opens it.
+    openWorkspace: (workspaceId, name) => {
+      const existing = tabShowing(state, workspaceId);
+      if (existing) return show(selectTab(state, existing));
+      const next = tabsTurnedOff ? null : addTab(state, { memory: seedFor(workspaceId), workspaceName: name });
       if (next) show(next);
+    },
+    closeOthers: () => {
+      for (const tab of state.tabs) if (tab.id !== state.active) tabs.close(tab.id);
     },
     // The page decides first, as it would if the window closed (see will-prevent-unload).
     close: (id) => {
@@ -459,10 +529,142 @@ function onWorkspaceTabRequest(event, request) {
   const tabs = win && win.webContents === event.sender ? workspaceTabs.get(win) : null;
   if (!tabs || typeof request?.type !== 'string') return;
   if (request.type === 'select') tabs.select(request.id);
-  else if (request.type === 'add') tabs.add();
+  else if (request.type === 'add') tabs.pick(anchorOf(request.anchor));
   else if (request.type === 'close') tabs.close(request.id);
   else if (request.type === 'rename') tabs.rename(request.id, request.name);
   else if (request.type === 'editing') tabs.editing(request.active === true);
+}
+
+// The + button's rectangle as the strip measured it, or null.
+function anchorOf(rect) {
+  return rect && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(rect[key])) ? rect : null;
+}
+
+const namesOf = (workspaces) => new Map(workspaces.map((workspace) => [workspace.id, workspace.name]));
+
+// The + menu's items (see pickerItems in src/workspace-picker.js) as a native menu.
+function pickerMenu(items, { select, open }) {
+  const text = (label) => (IS_WINDOWS ? label.replaceAll('&', '&&') : label); // Windows reads & as a shortcut key
+  const template = [];
+  for (const item of items) {
+    if (item.kind === 'workspace') {
+      const choose = () => (item.tabId ? select(item.tabId) : open(item.id, item.label));
+      template.push({ label: text(item.label), type: 'checkbox', checked: item.tabId !== null, enabled: item.enabled, click: choose });
+      continue;
+    }
+    if (template.length > 0) template.push({ type: 'separator' });
+    if (item.kind === 'header' && MENU_HEADINGS) template.push({ type: 'header', label: text(item.label) });
+    else template.push({ label: text(item.label), enabled: false });
+  }
+  return Menu.buildFromTemplate(template);
+}
+
+// The workspace tab whose page this is, as { tabs, id }, or null.
+function tabOf(contents) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    const tabs = workspaceTabs.get(win);
+    const id = tabs?.idOf(contents) ?? null;
+    if (id) return { tabs, id };
+  }
+  return null;
+}
+
+// Messages only a workspace tab's own XUNA page may send.
+function fromTabPage(event, act) {
+  const found = policy.isTrustedPage(event.senderFrame?.url) ? tabOf(event.sender) : null;
+  if (found) act(found.tabs, found.id);
+}
+
+// What src/preload.js asks as each page starts: the memory a workspace tab's page reads its workspace
+// from, or null for a page that keeps the profile's shared storage. A pop-up gets a copy of the memory
+// of the tab that opened it, or else of the tab in front, and keeps its own writes.
+function onWorkspaceMemoryRequest(event) {
+  event.returnValue = null; // the page waits for this answer, so it always gets one
+  try {
+    event.returnValue = workspaceMemoryFor(event.sender, event.senderFrame?.url);
+  } catch (error) {
+    console.error('[workspace tabs]', error);
+  }
+}
+
+function workspaceMemoryFor(contents, url) {
+  if (!USE_TABS || !policy.isTrustedPage(url)) return null;
+  let found = tabOf(contents);
+  const isTabPage = Boolean(found);
+  if (isTabPage) isolationGuard.pageStarted(contents.id); // a new page in the tab, which must read its workspace
+  for (let opener = contents, depth = 0; !found && opener && depth < 8; depth += 1) {
+    opener = opener.opener ? webContents.fromFrame(opener.opener) : null;
+    found = opener ? tabOf(opener) : null;
+  }
+  const front = mainWindow && !mainWindow.isDestroyed() ? workspaceTabs.get(mainWindow) : null;
+  if (!found && front) found = { tabs: front, id: front.activeId() };
+  if (!found) return null;
+  const memory = found.tabs.memoryOf(found.id);
+  return {
+    prefixes: TAB_KEY_PREFIXES,
+    activeKey: ACTIVE_WORKSPACE_KEY,
+    values: memory ? { ...memory.values } : null,
+    remembered: memory?.remembered ?? null,
+    report: isTabPage,
+  };
+}
+
+// XUNA removes the current workspace when it signs out, in every tab, since they share the sign-in. The
+// + menu then waits for the next sign-in to list the workspaces again.
+function onWorkspaceMemoryWrite(event, key, value) {
+  if (typeof key !== 'string' || (value !== null && typeof value !== 'string')) return;
+  fromTabPage(event, (tabs, id) => {
+    if (key === ACTIVE_WORKSPACE_KEY && value === null) workspaceList = null;
+    tabs.remember(id, key, value);
+  });
+}
+
+// An answer to XUNA's sign-in check, from any XUNA page: the account's workspaces, and their names for the tabs.
+function onWorkspaceList(event, responseText) {
+  if (!USE_TABS || typeof responseText !== 'string' || !policy.isTrustedPage(event.senderFrame?.url)) return;
+  const parsed = parseBootstrap(responseText);
+  if (!parsed) return;
+  workspaceList = parsed.workspaces;
+  for (const win of BrowserWindow.getAllWindows()) workspaceTabs.get(win)?.nameAll(namesOf(workspaceList));
+}
+
+// See createIsolationGuard in src/workspace-memory.js: a tab's page whose sign-in check completes before it
+// has read its workspace keeps the workspace somewhere every tab shares.
+function watchSignInChecks() {
+  session.defaultSession.webRequest.onCompleted({ urls: ['*://*/v2/auth/bootstrap*'] }, (details) => {
+    if (details.method !== 'POST' || details.statusCode < 200 || details.statusCode >= 300 || !policy.isTrustedPage(details.url)) return;
+    const contents = details.webContentsId ? webContents.fromId(details.webContentsId) : null;
+    if (contents && tabOf(contents) && isolationGuard.bootstrapCompleted(contents.id)) turnOffTabs();
+  });
+}
+
+// XUNA changed how it remembers the current workspace, so tabs would share one, and a change made in
+// one tab could be saved to another's workspace. The app says so once, closes the other tabs (each page
+// is asked first, as when a tab closes), and the + menu opens no more.
+function turnOffTabs() {
+  if (tabsTurnedOff) return;
+  tabsTurnedOff = true;
+  console.error('[workspace tabs] a page checked its sign-in without reading its workspace; tabs turned off');
+  const tabs = mainWindow && !mainWindow.isDestroyed() ? workspaceTabs.get(mainWindow) : null;
+  if (!tabs || tabs.count() < 2) return;
+  showMessage({
+    type: 'warning',
+    message: 'Workspace tabs are turned off',
+    detail: 'XUNA has changed how it keeps track of your workspace, so XUNA AI can no longer keep your tabs apart. Your other tabs will close, so nothing you do is saved to the wrong workspace. An update to XUNA AI will turn tabs back on.',
+    buttons: ['Close Other Tabs'],
+  }).then(() => tabs.closeOthers());
+}
+
+// Tabs used to have a profile each (Electron's persist:workspace-2 to -9), with a sign-in of their own.
+// They now share the first, so those profiles are deleted.
+function removeOldTabProfiles() {
+  for (let slot = 2; slot <= MAX_TABS; slot += 1) {
+    try {
+      fs.rmSync(path.join(app.getPath('userData'), 'Partitions', `workspace-${slot}`), { recursive: true, force: true });
+    } catch (error) {
+      console.error('[workspace tabs]', error);
+    }
+  }
 }
 
 function showMainWindow() {
