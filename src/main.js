@@ -7,6 +7,7 @@ const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy')
 const { buildAppMenu, attachContextMenu } = require('./menus');
 const { titleBarColor, macAppViewBounds } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
+const { MAX_TABS, partitionFor, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab } = require('./workspace-tabs');
 
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
 const APP_URL = (!app.isPackaged && process.env.XUNA_APP_URL) || config.APP_URL;
@@ -23,8 +24,11 @@ if (IS_WINDOWS) app.setAppUserModelId(config.APP_ID);
 let mainWindow = null;
 let titleBar = null; // XUNA's black or white for the title bars: Windows' own, and the strip on Mac
 let pushRegistration = Promise.resolve(null); // where XUNA's servers send this Mac's push notifications (macOS only)
-// On Mac the XUNA page is a view below the title strip (see addMacAppView); elsewhere it is the window's own page.
-const appPages = new WeakMap(); // Mac main window → its XUNA view's web contents
+// On Mac the XUNA pages are views below the title strip, one per workspace tab (see addWorkspaceTabs);
+// elsewhere the window's own page shows XUNA.
+const workspaceTabs = new WeakMap(); // Mac main window → its workspace tabs
+const pageColors = new WeakMap(); // XUNA page → the title bar colour for the theme it last reported
+const guardedSessions = new WeakSet(); // sessions given the permission rules: the default one and each tab's own
 let quitting = false; // a quit the XUNA page is holding up, to finish once the page has closed (macOS)
 
 if (!app.requestSingleInstanceLock()) {
@@ -47,8 +51,9 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
     ipcMain.on('xuna:page-appearance', onPageAppearance);
-    installPermissionHandlers();
-    Menu.setApplicationMenu(buildAppMenu(appContents));
+    ipcMain.on('xuna:workspace-tab-request', onWorkspaceTabRequest);
+    guardSession(session.defaultSession);
+    updateAppMenu(null);
     mainWindow = createMainWindow();
     app.on('activate', showMainWindow); // clicking the Dock icon on macOS
     // Clicking a push notification brings the app to the front but opens no window, so open one if none is left.
@@ -80,35 +85,47 @@ function backgroundColor() {
 }
 
 // Colours the Windows title bar: black in dark mode, white in light mode. Windows only; on Mac the strip
-// above the page takes the colour instead (see addMacAppView).
+// above the page takes the colour instead (see addWorkspaceTabs).
 function titleBarOptions() {
   return IS_WINDOWS && titleBar ? { accentColor: titleBar } : {};
 }
 
-// The page showing XUNA in a window: the view below the strip on Mac, otherwise the window's own page.
-function appContents(win) {
-  const page = appPages.get(win);
-  return page && !page.isDestroyed() ? page : win.webContents;
+// The menu bar. tabs: the Mac main window's workspace tabs for its Window menu, which is rebuilt
+// whenever they change; null while there is no main window, and on Windows.
+function updateAppMenu(tabs) {
+  Menu.setApplicationMenu(buildAppMenu(appContents, tabs));
 }
 
-// The window a page is shown in, the XUNA view of a Mac window included.
+// The page showing XUNA in a window: on Mac the workspace tab shown, otherwise the window's own page.
+function appContents(win) {
+  return workspaceTabs.get(win)?.activePage() ?? win.webContents;
+}
+
+// The window a page is shown in, the XUNA pages of a Mac window's workspace tabs included.
 function windowOf(contents) {
-  return BrowserWindow.getAllWindows().find((win) => win.webContents === contents || appContents(win) === contents) ?? null;
+  return BrowserWindow.getAllWindows().find((win) => win.webContents === contents || workspaceTabs.get(win)?.has(contents)) ?? null;
 }
 
 function openExternal(url) {
   if (isSafeExternalUrl(url)) shell.openExternal(url).catch(() => {});
 }
 
-// src/preload.js reports the theme the XUNA page is showing; the title bars follow it.
+// src/preload.js reports the theme the XUNA page is showing; the title bars follow the page in front.
 function onPageAppearance(event, appearance) {
-  if (!windowOf(event.sender) || !policy.isTrustedPage(event.senderFrame?.url)) return;
+  const win = windowOf(event.sender);
+  if (!win || !policy.isTrustedPage(event.senderFrame?.url)) return;
   const color = titleBarColor(appearance);
+  pageColors.set(event.sender, color);
+  // A workspace tab in the background keeps its colour for when it is shown (each tab has its own sign-in and theme).
+  if (appContents(win) === event.sender) setTitleBarColor(color);
+}
+
+function setTitleBarColor(color) {
   if (color === titleBar) return;
   titleBar = color;
   for (const win of BrowserWindow.getAllWindows()) {
     if (IS_WINDOWS) win.setAccentColor(color);
-    else if (appPages.has(win)) win.setBackgroundColor(color); // the Mac strip shows the window's background
+    else workspaceTabs.get(win)?.setColor(color); // the Mac strip shows the window's background
   }
 }
 
@@ -141,17 +158,25 @@ function harden(contents) {
       detail: 'Changes you made may not be saved.',
     };
     const owner = windowOf(contents);
+    const tabs = owner ? workspaceTabs.get(owner) : null;
+    tabs?.reveal(contents); // a workspace tab asking comes to the front, so its unsaved changes are in view
     const choice = owner ? dialog.showMessageBoxSync(owner, options) : dialog.showMessageBoxSync(options);
     if (choice === 0) event.preventDefault();
-    else quitting = false; // staying abandons any quit in progress
+    else {
+      quitting = false; // staying abandons any quit in progress
+      tabs?.keepOpen(contents); // and the tab or window close it held up
+    }
   });
 
   if (contents.getType() === 'window') attachContextMenu(contents, openExternal);
 }
 
-function installPermissionHandlers() {
+// The permission rules in src/policy.js, for the default session and for each workspace tab's own.
+function guardSession(ses) {
+  if (guardedSessions.has(ses)) return;
+  guardedSessions.add(ses);
   const pageUrl = (contents, fallback) => (contents && !contents.isDestroyed() && contents.getURL()) || fallback || '';
-  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+  ses.setPermissionRequestHandler((contents, permission, callback, details) => {
     callback(policy.permission(permission, {
       pageUrl: pageUrl(contents, details.requestingUrl),
       requestingUrl: details.requestingUrl,
@@ -159,7 +184,7 @@ function installPermissionHandlers() {
       mediaTypes: details.mediaTypes,
     }));
   });
-  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
+  ses.setPermissionCheckHandler((contents, permission, requestingOrigin, details) => {
     return policy.permission(permission, {
       pageUrl: pageUrl(contents, requestingOrigin),
       requestingUrl: requestingOrigin,
@@ -180,6 +205,12 @@ function createMainWindow() {
     spellcheck: true,
     preload: path.join(__dirname, 'preload.js'),
   };
+  const stripPreferences = {
+    contextIsolation: true,
+    sandbox: true,
+    nodeIntegration: false,
+    preload: path.join(__dirname, 'title-strip-preload.js'),
+  };
   const win = new BrowserWindow({
     ...bounds,
     minWidth: 400,
@@ -189,10 +220,11 @@ function createMainWindow() {
     ...titleBarOptions(),
     ...(IS_MAC ? { titleBarStyle: 'hidden' } : {}),
     autoHideMenuBar: true,
-    // On Mac the window's own page is the title strip, which needs nothing; XUNA gets a view below it.
-    webPreferences: IS_MAC ? { contextIsolation: true, sandbox: true, nodeIntegration: false } : appPreferences,
+    // On Mac the window's own page is the title strip, with the workspace tab buttons; XUNA gets views below it.
+    webPreferences: IS_MAC ? stripPreferences : appPreferences,
   });
-  const contents = IS_MAC ? addMacAppView(win, appPreferences) : win.webContents;
+  if (IS_MAC) addWorkspaceTabs(win, appPreferences);
+  else showXuna(win.webContents);
   if (maximized) win.maximize();
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
   win.on('closed', () => {
@@ -200,16 +232,24 @@ function createMainWindow() {
     // Sign-in and connect pop-ups have no purpose without the main window. On macOS the app itself
     // stays in the Dock, and clicking its icon opens a new main window.
     if (!IS_MAC) app.quit();
-    else for (const other of BrowserWindow.getAllWindows()) other.close();
+    else {
+      updateAppMenu(null); // the Window menu drops the closed window's tabs
+      for (const other of BrowserWindow.getAllWindows()) other.close();
+    }
   });
 
   // Mouse back/forward buttons.
   win.on('app-command', (_event, command) => {
-    const history = contents.navigationHistory;
+    const history = appContents(win).navigationHistory;
     if (command === 'browser-backward' && history.canGoBack()) history.goBack();
     if (command === 'browser-forward' && history.canGoForward()) history.goForward();
   });
 
+  return win;
+}
+
+// Opens XUNA in a page. A page that can't load shows the offline page, and one that crashes reloads.
+function showXuna(contents) {
   contents.on('did-fail-load', (_event, errorCode, _description, url, isMainFrame) => {
     // -3 is an aborted load (a redirect or a superseded navigation), not a failure.
     if (!isMainFrame || errorCode === -3 || url.startsWith('file:')) return;
@@ -225,48 +265,200 @@ function createMainWindow() {
   });
 
   contents.loadURL(APP_URL).catch(() => {}); // failures are handled by did-fail-load
-  return win;
 }
 
 // macOS draws its title bar in its own grey, whatever theme XUNA shows. So on Mac the window hides it,
 // keeping the three buttons, over a strip in XUNA's black or white: the window's background, which
-// onPageAppearance keeps in step with the page. src/title-strip.html, the window's own page, makes the
-// strip drag the window. XUNA's page is a view below the strip. Returns that view's web contents.
-function addMacAppView(win, webPreferences) {
-  const view = new WebContentsView({ webPreferences });
-  const page = view.webContents; // held here: once the page is destroyed, view.webContents is undefined
-  view.setBackgroundColor(backgroundColor());
-  win.contentView.addChildView(view);
-  appPages.set(win, page);
+// setTitleBarColor keeps in step with the page shown. src/title-strip.html, the window's own page, makes
+// the strip drag the window and draws the workspace tab buttons at its right end.
+//
+// Each workspace tab is a XUNA page in a view below the strip, signed in with the tab's own profile (see
+// src/workspace-tabs.js). Only the shown tab's view is visible; the others keep running, so a call or a
+// draft carries on while another workspace is in front. The tabs, their names and the one shown are
+// saved, and the window opens with them again.
+function addWorkspaceTabs(win, webPreferences) {
+  const stateFile = path.join(app.getPath('userData'), 'workspace-tabs.json');
+  let state = readTabs(readState(stateFile));
+  const views = new Map(); // tab id → { view, page }; the page is held, since view.webContents is undefined once it is destroyed
+  const closingTabs = new Set(); // tabs being closed, whose page is deciding whether it may go
+  let closingWindow = false; // the window is closing its pages, one at a time
+
+  const pageOf = (id) => {
+    const entry = views.get(id);
+    return entry && !entry.page.isDestroyed() ? entry.page : null;
+  };
 
   const layout = () => {
     const [width, height] = win.getContentSize();
-    view.setBounds(macAppViewBounds({ width, height, fullScreen: win.isFullScreen() }));
+    const bounds = macAppViewBounds({ width, height, fullScreen: win.isFullScreen(), tabCount: state.tabs.length });
+    for (const { view } of views.values()) view.setBounds(bounds);
   };
-  layout();
-  for (const event of ['resize', 'enter-full-screen', 'leave-full-screen']) win.on(event, layout);
-  win.on('focus', () => {
-    if (!page.isDestroyed()) page.focus(); // typing goes to XUNA, not the strip
+
+  const sendToStrip = () => {
+    win.webContents.send('xuna:workspace-tabs', {
+      tabs: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
+      canAdd: state.tabs.length < MAX_TABS,
+      dark: titleBar === config.BACKGROUND.dark,
+    });
+  };
+
+  // What the Window menu lists and does (see src/menus.js). ⌘W closes a tab only while this window is
+  // in front, so pressing it in a sign-in pop-up never closes the tab behind.
+  const menu = () => ({
+    list: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
+    canAdd: state.tabs.length < MAX_TABS,
+    add: () => tabs.add(),
+    close: () => {
+      if (BrowserWindow.getFocusedWindow() === win) tabs.close(state.active);
+    },
+    startRename: () => tabs.startRename(),
+    cycle: (step) => tabs.cycle(step),
+    select: (id) => tabs.select(id),
   });
 
-  // The window takes the XUNA page's title, as it did when the page was its own (the Window menu shows it).
-  win.on('page-title-updated', (event) => event.preventDefault());
-  page.on('page-title-updated', (_event, title) => win.setTitle(title));
+  // After any change: shows the selected tab's page and hides the others, colours the strip for it,
+  // saves the tabs, and redraws the strip and the Window menu.
+  const refresh = () => {
+    if (win.isDestroyed()) return;
+    for (const [id, { view }] of views) view.setVisible(id === state.active);
+    layout();
+    const page = pageOf(state.active);
+    if (page) {
+      win.setTitle(page.getTitle() || 'XUNA AI');
+      const color = pageColors.get(page);
+      if (color) setTitleBarColor(color);
+    }
+    writeState(stateFile, state);
+    sendToStrip();
+    updateAppMenu(menu());
+  };
 
-  // Closing the window asks the XUNA page first, which may have unsaved changes (see will-prevent-unload);
-  // the window closes once the page has gone. A quit the page held up carries on from there.
-  win.on('close', (event) => {
-    if (page.isDestroyed()) return;
-    event.preventDefault();
-    page.close({ waitForBeforeUnload: true });
-  });
-  page.once('destroyed', () => {
-    if (quitting) app.quit();
+  // Moves to a new state and puts the keyboard in the page it shows.
+  const show = (next) => {
+    state = next;
+    if (!pageOf(state.active)) openPage(state.active);
+    refresh();
+    pageOf(state.active)?.focus();
+  };
+
+  // Opens a tab's XUNA page in a hidden view below the strip, signed in with the tab's own profile.
+  const openPage = (id) => {
+    const partition = partitionFor(id);
+    if (partition) guardSession(session.fromPartition(partition));
+    const view = new WebContentsView({ webPreferences: partition ? { ...webPreferences, partition } : webPreferences });
+    const page = view.webContents;
+    view.setBackgroundColor(backgroundColor());
+    view.setVisible(false);
+    win.contentView.addChildView(view);
+    views.set(id, { view, page });
+    // The window takes the shown page's title, as it did when the page was its own (the Window menu shows it).
+    page.on('page-title-updated', (_event, title) => {
+      if (pageOf(state.active) === page) win.setTitle(title);
+    });
+    page.once('destroyed', () => onPageClosed(id, view));
+    showXuna(page);
+  };
+
+  // A page has gone, because its tab was closed or because the window is closing. A page that
+  // "Leave this page?" kept never gets here.
+  const onPageClosed = (id, view) => {
+    if (views.get(id)?.view === view) views.delete(id);
+    if (win.isDestroyed()) return;
+    win.contentView.removeChildView(view);
+    if (closingTabs.delete(id)) {
+      state = closeTab(state, id);
+      refresh();
+      pageOf(state.active)?.focus();
+    }
+    if (closingWindow) closeNextPage();
+  };
+
+  // Closing the window asks each XUNA page in turn, the shown one first, since any may have unsaved
+  // changes (see will-prevent-unload). The window closes once they have all gone, and a quit they held
+  // up carries on from there. The tabs stay saved, so the next window opens with them.
+  const closeNextPage = () => {
+    const next = [state.active, ...views.keys()].map(pageOf).find(Boolean);
+    if (next) next.close({ waitForBeforeUnload: true });
+    else if (quitting) app.quit();
     else if (!win.isDestroyed()) win.close();
+  };
+
+  const tabs = {
+    has: (contents) => [...views.values()].some((entry) => entry.page === contents),
+    activePage: () => pageOf(state.active),
+    setColor: (color) => {
+      win.setBackgroundColor(color);
+      sendToStrip();
+    },
+    select: (id) => show(selectTab(state, id)),
+    cycle: (step) => show(cycleTab(state, step)),
+    add: () => {
+      const next = addTab(state);
+      if (next) show(next);
+    },
+    // The page decides first, as it would if the window closed (see will-prevent-unload).
+    close: (id) => {
+      if (state.tabs.length < 2 || !state.tabs.some((tab) => tab.id === id)) return;
+      const page = pageOf(id);
+      if (!page) return show(closeTab(state, id));
+      closingTabs.add(id);
+      page.close({ waitForBeforeUnload: true });
+    },
+    rename: (id, name) => {
+      state = renameTab(state, id, name);
+      refresh();
+      pageOf(state.active)?.focus();
+    },
+    // While a tab's name is typed the keys go to the strip; afterwards, back to XUNA.
+    editing: (active) => (active ? win.webContents : pageOf(state.active))?.focus(),
+    startRename: () => {
+      if (state.tabs.length < 2) return; // with one tab the strip shows no tab to rename
+      win.webContents.focus();
+      win.webContents.send('xuna:workspace-tab-rename', state.active);
+    },
+    // A page asking "Leave this page?" is shown first.
+    reveal: (contents) => {
+      const id = [...views].find(([, entry]) => entry.page === contents)?.[0];
+      if (id && id !== state.active) show(selectTab(state, id));
+    },
+    // The page answered Stay: it keeps its tab, and the window stays open. Pages the window closed before
+    // this one asked open again, so no tab is left empty.
+    keepOpen: (contents) => {
+      for (const id of closingTabs) if (pageOf(id) === contents) closingTabs.delete(id);
+      if (!closingWindow) return;
+      closingWindow = false;
+      for (const tab of state.tabs) if (!pageOf(tab.id)) openPage(tab.id);
+      refresh();
+    },
+  };
+  workspaceTabs.set(win, tabs);
+
+  for (const tab of state.tabs) openPage(tab.id);
+  for (const event of ['resize', 'enter-full-screen', 'leave-full-screen']) win.on(event, layout);
+  win.on('focus', () => pageOf(state.active)?.focus()); // typing goes to XUNA, not the strip
+  win.on('page-title-updated', (event) => event.preventDefault());
+  win.webContents.on('did-finish-load', sendToStrip);
+  win.on('close', (event) => {
+    if (![...views.keys()].some(pageOf)) return;
+    event.preventDefault();
+    closingWindow = true;
+    closeNextPage();
   });
 
   win.loadFile(path.join(__dirname, 'title-strip.html')).catch(() => {});
-  return page;
+  refresh();
+}
+
+// Clicks on the title strip's tab buttons (src/title-strip.js). Only a Mac main window's own strip is heard.
+function onWorkspaceTabRequest(event, request) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const tabs = win && win.webContents === event.sender ? workspaceTabs.get(win) : null;
+  if (!tabs || typeof request?.type !== 'string') return;
+  if (request.type === 'select') tabs.select(request.id);
+  else if (request.type === 'add') tabs.add();
+  else if (request.type === 'close') tabs.close(request.id);
+  else if (request.type === 'rename') tabs.rename(request.id, request.name);
+  else if (request.type === 'editing') tabs.editing(request.active === true);
 }
 
 function showMainWindow() {

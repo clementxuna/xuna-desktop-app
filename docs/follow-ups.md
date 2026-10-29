@@ -74,3 +74,9 @@ None of these is visible to users today.
   - Theme reports could be limited explicitly to the main window.
   - The preload could guard against very early theme changes and batch its reports.
   - Tests are missing for the `only light` case and for a pure trust check.
+- **Workspace tabs (Mac):**
+  - A tab isn't named after its workspace automatically, because XUNA's page title is always
+    "XUNA AI". Tabs are named "Workspace N" until renamed. The web app could set
+    `document.title` to the workspace's name, and the strip could then use it.
+  - Clicking a notification from a tab in the background doesn't bring that tab to the front.
+  - Tab buttons are reached by mouse and shortcuts only. Tab doesn't move focus into the strip.

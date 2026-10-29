@@ -57,12 +57,12 @@ reason for it.
     from the theme the page reports. 28 pixels is macOS's own title bar height, so the buttons
     sit where they always do.
   - XUNA's page is a `WebContentsView` below the strip, because a page that filled the window
-    would sit under the buttons. The window's own page is `src/title-strip.html`, which only
-    makes the strip drag the window. In full screen the strip goes and the page fills the
-    screen.
-  - Closing the window first closes XUNA's page, so its "Leave this page?" check still runs,
-    and a quit that the page held up finishes once it has closed. Back, Forward, Reload and
-    Developer Tools act on XUNA's page, not the strip.
+    would sit under the buttons. The window's own page is `src/title-strip.html`, which makes
+    the strip drag the window and draws the workspace tab buttons (see "Workspace tabs"). In
+    full screen the strip goes and the page fills the screen, unless two or more tabs are open.
+  - Closing the window first closes XUNA's pages, so their "Leave this page?" check still
+    runs, and a quit that a page held up finishes once they have closed. Back, Forward, Reload
+    and Developer Tools act on the XUNA page shown, not the strip.
   - Sign-in and connect pop-ups keep macOS's standard title bar.
 - **Windows' own title bar, recoloured:** black (the app's `#010101`) in dark mode, white in
   light mode. It uses Electron's `accentColor`, which sets Windows' caption colour, rather than
@@ -74,6 +74,38 @@ reason for it.
   (see "Mac").
 - **The colour is applied to every window as it is created,** because Electron otherwise waits
   for the window's first focus and shows Windows' gray until then.
+
+## Workspace tabs (Mac)
+
+- **Several workspaces open at once, as tabs in the title bar strip.** They sit at the strip's
+  right end, so they stay clear of macOS's three buttons. With one tab open only the + button
+  shows. Each tab is its own `WebContentsView`, and only the one shown is visible. The others
+  keep running, so a call or a draft carries on in the background. The window opens with the
+  saved tabs, their names and the one that was shown (`workspace-tabs.json` in the app's data).
+- **Each tab has its own profile** (an Electron session, `persist:workspace-N`), so each tab
+  signs in separately. XUNA keeps the active workspace in the browser's storage and sends it
+  with every request. Two tabs sharing a profile would switch each other's workspace, and a
+  change made in one could be saved to the other's workspace. Separate profiles keep this a
+  desktop-only change, with nothing to do in the web app, and a tab may sign in to a
+  different account.
+  - Tab 1 uses the default session, so everyone keeps the sign-in they had before tabs.
+  - A closed tab's profile is kept, sign-in included, and the next new tab reuses the
+    lowest-numbered free one. Its default name, "Workspace N", is that profile's number.
+  - Every session gets the same permission rules, and pop-ups share the session of the tab
+    that opened them.
+- **Mac only.** Windows keeps its own title bar, recoloured. Tabs there would mean drawing a
+  title bar in place of Windows' own.
+- **Shortcuts, as in Safari:** ⌘T opens a tab, ⌘W closes the one shown (only when more than
+  one is open, and only while the main window is in front), ⌘1 to ⌘9 show one and ⌃Tab steps
+  through them. The Window menu lists the tabs. At most nine tabs can be open, one for each of
+  ⌘1 to ⌘9.
+- **Closing a tab asks its page first,** as closing the window does. The tab whose page asks
+  "Leave this page?" comes to the front. Answering Stay keeps it. When the window is closing,
+  Stay also keeps the window open and reopens the pages already closed.
+- **The strip is a local page with its own sandboxed preload** (`src/title-strip-preload.js`)
+  that passes button clicks to the main process. Its policy allows only its own script. The
+  main process acts only on requests from the main window's own strip. XUNA pages never get
+  the tab controls.
 
 ## Mac
 

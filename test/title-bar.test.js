@@ -43,13 +43,34 @@ test('in full screen the XUNA page takes the whole window', () => {
   assert.deepEqual(macAppViewBounds({ width: 1512, height: 982, fullScreen: true }), { x: 0, y: 0, width: 1512, height: 982 });
 });
 
+test('with two or more workspace tabs open the strip stays in full screen, so they can still be switched', () => {
+  assert.deepEqual(macAppViewBounds({ width: 1512, height: 982, fullScreen: true, tabCount: 1 }), { x: 0, y: 0, width: 1512, height: 982 });
+  assert.deepEqual(macAppViewBounds({ width: 1512, height: 982, fullScreen: true, tabCount: 2 }), { x: 0, y: 28, width: 1512, height: 954 });
+  assert.deepEqual(macAppViewBounds({ width: 1280, height: 820, fullScreen: false, tabCount: 3 }), { x: 0, y: 28, width: 1280, height: 792 });
+});
+
 test('a window smaller than the strip gives the page no height rather than a negative one', () => {
   assert.deepEqual(macAppViewBounds({ width: 400, height: 10, fullScreen: false }), { x: 0, y: 28, width: 400, height: 0 });
 });
 
+const stripHtml = () => fs.readFileSync(path.join(__dirname, '..', 'src', 'title-strip.html'), 'utf8');
+const cssRule = (html, selector) => html.match(new RegExp(`(?:^|\\s)${selector.replaceAll('.', '\\.')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+
 test("the strip's drag area is exactly the strip", () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'title-strip.html'), 'utf8');
-  const strip = html.match(/\.strip\s*\{([^}]*)\}/)?.[1] ?? '';
+  const strip = cssRule(stripHtml(), '.strip');
   assert.match(strip, new RegExp(`height:\\s*${MAC_TITLE_STRIP_HEIGHT}px`));
   assert.match(strip, /(^|[\s;])app-region:\s*drag/);
+});
+
+test("the strip's buttons take clicks instead of dragging the window", () => {
+  const buttons = cssRule(stripHtml(), '.tab, .add');
+  assert.match(buttons, /(^|[\s;])app-region:\s*no-drag/);
+  assert.match(buttons, /-webkit-app-region:\s*no-drag/);
+});
+
+test('the strip runs only its own script file', () => {
+  const policy = stripHtml().match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)?.[1] ?? '';
+  assert.match(policy, /default-src 'none'/);
+  assert.match(policy, /script-src 'self'(;|$)/);
+  assert.doesNotMatch(stripHtml(), /<script>/); // an inline script would be refused anyway
 });

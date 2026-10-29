@@ -20,10 +20,11 @@ function titleBarColor(report) {
   return report?.prefersDark === true ? BACKGROUND.dark : BACKGROUND.light;
 }
 
-// Where the XUNA page goes in a Mac window with this content size: below the strip, or the whole window
+// Where the XUNA pages go in a Mac window with this content size: below the strip, or the whole window
 // in full screen, where macOS shows the buttons over the page only while the pointer is at the top.
-function macAppViewBounds({ width, height, fullScreen }) {
-  const top = fullScreen ? 0 : MAC_TITLE_STRIP_HEIGHT;
+// With more than one workspace tab open the strip stays in full screen, so the tabs can still be switched.
+function macAppViewBounds({ width, height, fullScreen, tabCount = 1 }) {
+  const top = fullScreen && tabCount < 2 ? 0 : MAC_TITLE_STRIP_HEIGHT;
   return { x: 0, y: top, width: Math.max(0, width), height: Math.max(0, height - top) };
 }
 

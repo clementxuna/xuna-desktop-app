@@ -11,11 +11,41 @@ function showAbout() {
   else dialog.showMessageBox(options);
 }
 
+// The Mac Window menu, with the main window's workspace tabs (see addWorkspaceTabs in src/main.js):
+// ⌘T opens one, ⌘W closes the one shown, ⌘1 to ⌘9 show one and ⌃Tab steps through them, as in Safari.
+// tabs is null while no main window is open.
+function macWindowMenu(tabs) {
+  const items = [{ role: 'minimize' }, { role: 'zoom' }];
+  if (tabs) {
+    const several = tabs.list.length > 1;
+    items.push(
+      { type: 'separator' },
+      { label: 'New Workspace Tab', accelerator: 'Cmd+T', enabled: tabs.canAdd, click: () => tabs.add() },
+      { label: 'Close Workspace Tab', accelerator: 'Cmd+W', enabled: several, click: () => tabs.close() },
+      { label: 'Rename Workspace Tab…', enabled: several, click: () => tabs.startRename() },
+      { type: 'separator' },
+      { label: 'Show Next Workspace Tab', accelerator: 'Ctrl+Tab', enabled: several, click: () => tabs.cycle(1) },
+      { label: 'Show Previous Workspace Tab', accelerator: 'Ctrl+Shift+Tab', enabled: several, click: () => tabs.cycle(-1) },
+      { type: 'separator' },
+      ...tabs.list.map((tab, index) => ({
+        label: tab.label,
+        type: 'checkbox',
+        checked: tab.active,
+        accelerator: `Cmd+${index + 1}`,
+        click: () => tabs.select(tab.id),
+      })),
+    );
+  }
+  items.push({ type: 'separator' }, { role: 'front' });
+  return { label: 'Window', role: 'window', submenu: items };
+}
+
 // On Windows the menu bar stays hidden (Alt shows it); it is mostly here for its keyboard shortcuts.
 // On macOS it is the usual menu bar, with the app menu (About, Hide, Quit) and the Window menu.
 // appContents(win) is the page showing XUNA in a window, which on Mac is not the window's own page (see
 // src/main.js), so the page commands go to it rather than to Electron's roles for them.
-function buildAppMenu(appContents) {
+// tabs: the Mac main window's workspace tabs, for the Window menu (see macWindowMenu).
+function buildAppMenu(appContents, tabs = null) {
   const focusedPage = () => {
     const win = BrowserWindow.getFocusedWindow();
     return win ? appContents(win) : null;
@@ -40,7 +70,7 @@ function buildAppMenu(appContents) {
         { role: 'togglefullscreen' },
       ],
     },
-    IS_MAC ? { role: 'windowMenu' } : { label: 'Help', submenu: [{ label: 'About XUNA AI', click: showAbout }] },
+    IS_MAC ? macWindowMenu(tabs) : { label: 'Help', submenu: [{ label: 'About XUNA AI', click: showAbout }] },
   ]);
 }
 

@@ -2,18 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
   <title>XUNA AI</title>
-  <!-- The strip above the XUNA page on Mac, behind the window's three buttons. It draws nothing: its
-       colour is the window's background, which src/main.js sets to XUNA's black or white. It is here
-       so the strip drags the window, as macOS's own title bar would. Its height is
-       MAC_TITLE_STRIP_HEIGHT in src/title-bar.js. -->
+  <!-- The strip above the XUNA pages on Mac, behind the window's three buttons. Its colour is the
+       window's background, which src/main.js sets to XUNA's black or white, and it drags the window,
+       as macOS's own title bar would. Its right end holds the workspace tab buttons, drawn by
+       src/title-strip.js; they take clicks instead. Its height is MAC_TITLE_STRIP_HEIGHT in
+       src/title-bar.js. -->
   <style>
+    :root {
+      --text: #0a0a0a;
+      --muted: rgb(10 10 10 / 55%);
+      --hover: rgb(10 10 10 / 6%);
+      --selected: rgb(10 10 10 / 9%);
+      --ring: rgb(10 10 10 / 35%);
+      color-scheme: light;
+    }
+    :root[data-theme="dark"] {
+      --text: #fafafa;
+      --muted: rgb(250 250 250 / 55%);
+      --hover: rgb(250 250 250 / 7%);
+      --selected: rgb(250 250 250 / 13%);
+      --ring: rgb(250 250 250 / 40%);
+      color-scheme: dark;
+    }
     html, body { margin: 0; background: transparent; }
-    .strip { position: fixed; top: 0; left: 0; right: 0; height: 28px; app-region: drag; -webkit-app-region: drag; }
+    .strip { position: fixed; top: 0; left: 0; right: 0; height: 28px; app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 6px 0 84px; box-sizing: border-box; font: 500 12px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: var(--text); user-select: none; }
+    .tabs { display: flex; gap: 2px; min-width: 0; }
+    .tab, .add { app-region: no-drag; -webkit-app-region: no-drag; }
+    .tab { display: flex; align-items: center; flex: 0 1 auto; min-width: 44px; max-width: 168px; height: 20px; border-radius: 6px; color: var(--muted); }
+    .tab:hover { background: var(--hover); color: var(--text); }
+    .tab.active { background: var(--selected); color: var(--text); }
+    button, input { margin: 0; border: 0; background: none; color: inherit; font: inherit; }
+    button { cursor: default; }
+    button:focus-visible, input:focus { outline: 1px solid var(--ring); outline-offset: -1px; }
+    .select { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 2px 0 10px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+    .close, .add { display: grid; place-items: center; flex: none; padding: 0; color: var(--muted); }
+    .close { width: 16px; height: 16px; margin: 0 2px; border-radius: 4px; visibility: hidden; }
+    .tab:hover .close, .tab.active .close, .close:focus-visible { visibility: visible; }
+    .close:hover { background: var(--hover); color: var(--text); }
+    .add { width: 20px; height: 20px; border-radius: 6px; }
+    .add:hover { background: var(--hover); color: var(--text); }
+    .rename { width: 120px; min-width: 0; height: 100%; padding: 0 10px; border-radius: 6px; user-select: text; }
+    svg { display: block; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="strip"></div>
+  <div class="strip">
+    <div class="tabs" role="tablist" aria-label="Workspaces"></div>
+    <button class="add" type="button" title="New Workspace Tab (⌘T)" aria-label="New workspace tab" hidden>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1v8M1 5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <script src="title-strip.js"></script>
 </body>
 </html>
