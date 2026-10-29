@@ -31,7 +31,10 @@ build from the same code.
   workspace, so tabs never switch each other's workspace. Tab 1 keeps the sign-in from before
   tabs existed. The open tabs come back when the app reopens (`src/workspace-tabs.js`).
 - Installed copies update themselves from this repo's GitHub Releases: they check at
-  start-up and every 6 hours, download in the background and install when the app quits.
+  start-up, every 6 hours and from Check for Updates… (in the XUNA AI menu on Mac, the Help
+  menu on Windows), and download in the background. Once an update has downloaded, they ask to
+  restart for it, by notification if XUNA isn't in front. Choosing Later installs it when the
+  app quits (`src/updates.js`).
 - `site/` is the download page, deployed separately (see below).
 
 ## Develop

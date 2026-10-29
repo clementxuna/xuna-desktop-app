@@ -2,8 +2,6 @@
 
 const { app, BrowserWindow, Menu, clipboard, dialog } = require('electron');
 
-const IS_MAC = process.platform === 'darwin';
-
 function showAbout() {
   const options = { type: 'info', title: 'About XUNA AI', message: 'XUNA AI', detail: `Version ${app.getVersion()}` };
   const owner = BrowserWindow.getFocusedWindow();
@@ -40,28 +38,54 @@ function macWindowMenu(tabs) {
   return { label: 'Window', role: 'window', submenu: items };
 }
 
+// Electron's own Mac app menu, with Check for Updates… after About, where Mac apps put it.
+function macAppMenu(checkForUpdates) {
+  return {
+    role: 'appMenu',
+    submenu: [
+      { role: 'about' },
+      { label: 'Check for Updates…', click: checkForUpdates },
+      { type: 'separator' },
+      { role: 'services' },
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+      { type: 'separator' },
+      { role: 'quit' },
+    ],
+  };
+}
+
 // On Windows the menu bar stays hidden (Alt shows it); it is mostly here for its keyboard shortcuts.
-// On macOS it is the usual menu bar, with the app menu (About, Hide, Quit) and the Window menu.
+// On macOS it is the usual menu bar, with the app menu (About, Check for Updates…, Hide, Quit) and the Window menu.
 // appContents(win) is the page showing XUNA in a window, which on Mac is not the window's own page (see
 // src/main.js), so the page commands go to it rather than to Electron's roles for them.
 // tabs: the Mac main window's workspace tabs, for the Window menu (see macWindowMenu).
-function buildAppMenu(appContents, tabs = null) {
+// checkForUpdates: what Check for Updates… does (see src/updates.js).
+function buildAppMenu(appContents, tabs, checkForUpdates) {
+  return Menu.buildFromTemplate(appMenuTemplate({ appContents, tabs, checkForUpdates }));
+}
+
+// The menu bar as a template, which test/menus.test.js checks for each platform.
+function appMenuTemplate({ appContents, tabs = null, checkForUpdates, platform = process.platform }) {
+  const isMac = platform === 'darwin';
   const focusedPage = () => {
     const win = BrowserWindow.getFocusedWindow();
     return win ? appContents(win) : null;
   };
-  return Menu.buildFromTemplate([
-    IS_MAC ? { role: 'appMenu' } : { label: 'File', submenu: [{ role: 'quit' }] },
+  return [
+    isMac ? macAppMenu(checkForUpdates) : { label: 'File', submenu: [{ role: 'quit' }] },
     { role: 'editMenu' },
     {
       label: 'View',
       submenu: [
-        { label: 'Back', accelerator: IS_MAC ? 'Cmd+[' : 'Alt+Left', click: () => { const history = focusedPage()?.navigationHistory; if (history?.canGoBack()) history.goBack(); } },
-        { label: 'Forward', accelerator: IS_MAC ? 'Cmd+]' : 'Alt+Right', click: () => { const history = focusedPage()?.navigationHistory; if (history?.canGoForward()) history.goForward(); } },
+        { label: 'Back', accelerator: isMac ? 'Cmd+[' : 'Alt+Left', click: () => { const history = focusedPage()?.navigationHistory; if (history?.canGoBack()) history.goBack(); } },
+        { label: 'Forward', accelerator: isMac ? 'Cmd+]' : 'Alt+Right', click: () => { const history = focusedPage()?.navigationHistory; if (history?.canGoForward()) history.goForward(); } },
         { type: 'separator' },
         { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => focusedPage()?.reload() },
         { label: 'Force Reload', accelerator: 'Shift+CmdOrCtrl+R', click: () => focusedPage()?.reloadIgnoringCache() },
-        { label: 'Toggle Developer Tools', accelerator: IS_MAC ? 'Alt+Command+I' : 'Ctrl+Shift+I', click: () => focusedPage()?.toggleDevTools() },
+        { label: 'Toggle Developer Tools', accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I', click: () => focusedPage()?.toggleDevTools() },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn', accelerator: 'CommandOrControl+=' },
@@ -70,8 +94,10 @@ function buildAppMenu(appContents, tabs = null) {
         { role: 'togglefullscreen' },
       ],
     },
-    IS_MAC ? macWindowMenu(tabs) : { label: 'Help', submenu: [{ label: 'About XUNA AI', click: showAbout }] },
-  ]);
+    isMac
+      ? macWindowMenu(tabs)
+      : { label: 'Help', submenu: [{ label: 'Check for Updates…', click: checkForUpdates }, { type: 'separator' }, { label: 'About XUNA AI', click: showAbout }] },
+  ];
 }
 
 // Right-click menu: spelling fixes, link actions and the usual edit commands.
@@ -110,4 +136,4 @@ function attachContextMenu(contents, openExternal) {
   });
 }
 
-module.exports = { buildAppMenu, attachContextMenu };
+module.exports = { buildAppMenu, appMenuTemplate, attachContextMenu };

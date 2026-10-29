@@ -171,6 +171,17 @@ reason for it.
   releases.
 - The job checks the tag before installing anything, and doesn't leave its write token where
   dependency install scripts could read it.
+- **Updates ask to restart** (`src/updates.js`). electron-updater's own
+  `checkForUpdatesAndNotify()` showed a notification that did nothing when clicked, and the
+  update only installed at the next quit. Now a downloaded update brings up Restart Now / Later.
+  If XUNA isn't in front, a notification appears instead, and clicking it or coming back to XUNA
+  asks. Check for Updates… sits where each platform puts it: under About in the Mac app menu, and
+  in Help on Windows, since the app has no settings menu.
+- **On Windows, Restart Now quits before it installs.** The installer force-closes any copy
+  still running about a second after it starts. electron-updater's `quitAndInstall()` starts it
+  first, so a page that answered "Stay" to "Leave this page?" would lose its unsaved changes.
+  The app quits normally first and starts the installer in `will-quit`, once every page has
+  agreed to close. On Mac, Electron already closes the windows before installing.
 - **Install settings:**
   - The installer always has the same name, `XUNA-AI-Setup.exe`, so the "latest" download link
     never changes.

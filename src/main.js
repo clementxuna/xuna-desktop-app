@@ -1,10 +1,11 @@
 'use strict';
 
 const path = require('node:path');
-const { app, BrowserWindow, Menu, WebContentsView, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, WebContentsView, dialog, ipcMain, nativeTheme, pushNotifications, screen, session, shell } = require('electron');
 const config = require('./config');
 const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
 const { buildAppMenu, attachContextMenu } = require('./menus');
+const { createUpdates } = require('./updates');
 const { titleBarColor, macAppViewBounds } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, partitionFor, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab } = require('./workspace-tabs');
@@ -30,6 +31,9 @@ const workspaceTabs = new WeakMap(); // Mac main window → its workspace tabs
 const pageColors = new WeakMap(); // XUNA page → the title bar colour for the theme it last reported
 const guardedSessions = new WeakSet(); // sessions given the permission rules: the default one and each tab's own
 let quitting = false; // a quit the XUNA page is holding up, to finish once the page has closed (macOS)
+let afterQuit = null; // what a restart for an update does once nothing can stop the quit (Windows; see src/updates.js)
+let updates = null; // installed copies' updates (see startAutoUpdates)
+let updateNotification = null; // held, so a click on it still arrives
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -48,6 +52,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     quitting = true;
   });
+  app.on('will-quit', () => afterQuit?.());
   app.whenReady().then(() => {
     titleBar = titleBarColor({ prefersDark: nativeTheme.shouldUseDarkColors }); // until the page reports its theme
     ipcMain.on('xuna:page-appearance', onPageAppearance);
@@ -93,7 +98,7 @@ function titleBarOptions() {
 // The menu bar. tabs: the Mac main window's workspace tabs for its Window menu, which is rebuilt
 // whenever they change; null while there is no main window, and on Windows.
 function updateAppMenu(tabs) {
-  Menu.setApplicationMenu(buildAppMenu(appContents, tabs));
+  Menu.setApplicationMenu(buildAppMenu(appContents, tabs, checkForUpdates));
 }
 
 // The page showing XUNA in a window: on Mac the workspace tab shown, otherwise the window's own page.
@@ -164,6 +169,7 @@ function harden(contents) {
     if (choice === 0) event.preventDefault();
     else {
       quitting = false; // staying abandons any quit in progress
+      afterQuit = null; // a restart for an update included: the update installs at the next quit instead
       tabs?.keepOpen(contents); // and the tab or window close it held up
     }
   });
@@ -473,14 +479,45 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
-// Installed copies check GitHub Releases at start-up and every few hours, download in the background
-// and install when the app quits. Development runs skip this.
+// Installed copies keep themselves up to date and ask to restart for an update (see src/updates.js).
+// Development runs skip this.
 function startAutoUpdates() {
   if (!app.isPackaged) return;
   const { autoUpdater } = require('electron-updater');
-  const check = () => autoUpdater.checkForUpdatesAndNotify().catch((error) => console.error('[updater]', error));
-  autoUpdater.on('error', (error) => console.error('[updater]', error));
-  const timer = setInterval(check, config.UPDATE_CHECK_INTERVAL_MS);
-  autoUpdater.once('update-downloaded', () => clearInterval(timer));
-  check();
+  updates = createUpdates({
+    updater: autoUpdater,
+    version: app.getVersion(),
+    platform: process.platform,
+    checkEvery: config.UPDATE_CHECK_INTERVAL_MS,
+    ui: {
+      inFront: () => BrowserWindow.getFocusedWindow() !== null,
+      onNextFocus: (callback) => app.once('browser-window-focus', () => callback()),
+      ask: (options) => showMessage({ type: 'info', defaultId: 0, cancelId: 1, noLink: true, ...options }).then(({ response }) => response),
+      tell: (options) => showMessage({ type: 'info', ...options }),
+      notify: ({ title, body, onClick }) => {
+        if (!Notification.isSupported()) return;
+        updateNotification = new Notification({ title, body });
+        updateNotification.on('click', onClick);
+        updateNotification.show();
+      },
+      showWindow: showMainWindow,
+      quitThen: (callback) => {
+        afterQuit = callback;
+        app.quit();
+      },
+    },
+  });
+  updates.start();
+}
+
+// Check for Updates… in the menu bar.
+function checkForUpdates() {
+  if (updates) updates.check({ asked: true });
+  else showMessage({ type: 'info', message: 'Updates are off in development runs', detail: 'Installed copies of XUNA AI check for updates.' });
+}
+
+// A message box over the window in front, or over the main window while XUNA isn't in front.
+function showMessage(options) {
+  const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  return owner && !owner.isDestroyed() ? dialog.showMessageBox(owner, options) : dialog.showMessageBox(options);
 }

@@ -46,6 +46,20 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
   version" in the README.
 - **Check the first Mac update.** Updating from one Mac release to the next hasn't been
   tried yet; the first chance is the release after 1.1.0.
+- **Check the restart prompt on Mac.** On Windows it was tried end to end with local test
+  builds: the question at launch, Restart Now, Later, the notification and Check for Updates….
+  On Mac, Restart Now goes through Electron's own install and hasn't been tried. Things to see:
+  - Whether XUNA reopens as the new version.
+  - What happens if a page answers "Stay" during the restart. Electron waits for every window
+    to close, so the update probably installs the next time the window closes.
+- **Click the update notification on Windows.** The notification appears when XUNA isn't in
+  front, and coming back to XUNA asks. Clicking the notification itself hasn't been seen
+  working yet:
+  - The test build's pop-up disappeared before it could be clicked.
+  - Clicking it in the notification centre opened the real app instead, because the test build
+    shares the real app's notification ID (`APP_ID`).
+  - With the real app, a notification-centre click should start a second copy, which hands over
+    to the running one and brings it to the front, and that asks.
 
 ## Known minor issues
 
