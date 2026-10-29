@@ -100,14 +100,19 @@ reason for it.
     selected agency and client (`src/workspace-memory.js`). The XUNA preload hooks the page's
     storage before XUNA's scripts run (`contextBridge.executeInMainWorld`, marked experimental
     in Electron 44); every other key stays shared. The main process holds each tab's copy and
-    saves it with the tab, so the tab reopens in its workspace.
+    saves it with the tab, so the tab reopens in its workspace. Only the app's own pages
+    (app.xuna.ai) get it: other xuna.ai sites have storage of their own.
   - Signing out clears a tab's workspace, but the tab remembers it and offers it as a hint (not
     a deliberate choice) at the next sign-in, so each tab comes back to its own workspace.
   - A XUNA page in a pop-up (an OAuth return, say) reads the workspace of the tab that opened it.
-    Pop-ups get the XUNA preload for this; their writes stay their own.
+    Pop-ups get the XUNA preload for this; their writes stay their own. Each pop-up's tab is
+    recorded as it opens, so a page that loads in it later still finds that tab after the user
+    has moved to another, and even if the pop-up has no opener (`noopener`, or a page that cut
+    it). Without a record it takes its opener's tab, and only then the tab in front.
   - Tabs used to have a profile each (`persist:workspace-2` to `-9`). Those profiles, and the
     sign-ins in them, are deleted at start-up. A tab saved before this starts from the
-    workspace the shared profile last held, which is tab 1's.
+    workspace the shared profile last held, which is tab 1's, and tabs 2 to 9 lose the names
+    typed for them, which may have named another account's workspace.
 - **The + menu shows XUNA's own list.** Every XUNA page checks its sign-in with
   `POST /v2/auth/bootstrap` as it starts and when it switches workspace; the answer's
   `accessList` is every workspace the account can open. The preload passes each answer on, and
@@ -115,12 +120,20 @@ reason for it.
   with its clients, then clients of agencies the user isn't in. It is a native menu, with
   headings on macOS 14 and later. A workspace open in a tab has a tick and shows that tab; any
   other opens in a new tab as a deliberate choice, as a click in XUNA's switcher does
-  (`src/workspace-picker.js`). A tab is named after its workspace unless a name was typed.
+  (`src/workspace-picker.js`). A tab is named after its workspace unless a name was typed, from
+  XUNA's whole list, so a workspace the menu doesn't offer (one still being set up) still names
+  its tab. A tab that moves to a workspace with no known name shows "Workspace N" until it has
+  one, and renaming a tab to the name it already shows keeps it following its workspace.
 - **A guard turns tabs off if XUNA changes how it remembers the workspace.** XUNA reads the
   current workspace before every request, so a tab's page whose sign-in check completes
   without having read it keeps the workspace somewhere the tabs share. The app then says so
   once, closes the other tabs (each page asked first) and opens no more, rather than let
   workspaces mix. A desktop update with the new key turns them back on.
+  - It waits five seconds before deciding. The read and the completed check reach the main
+    process by different routes, and a check the previous page in a tab started can complete
+    after the next page has begun; a check whose page has since been replaced is let go.
+  - It goes by the page, so it holds wherever XUNA's API is. A page back from the back/forward
+    cache says again that it reads its workspace, since it starts no new preload.
 - **Before this, each tab had its own profile and sign-in.** That kept the change desktop-only,
   but every new workspace meant signing in again (a tab could also be signed in to another
   account). Tabs are now for one account's workspaces.

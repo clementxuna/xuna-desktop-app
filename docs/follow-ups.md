@@ -69,7 +69,14 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
   - a XUNA pop-up, such as connecting an integration, acts on the tab that opened it;
   - signing out in one tab signs out the others, and signing back in returns each tab to its
     workspace;
-  - the menu's headings on macOS 14 and later, and plain greyed labels on older systems.
+  - the menu's headings on macOS 14 and later, and plain greyed labels on older systems;
+  - updating from 1.2.2 with several named tabs: tab 1 keeps its name, the others show their
+    workspace's;
+  - signing out of one account and signing in, or signing up, as another: the new account's
+    tabs open its own workspaces (each tab offers its last workspace only as a hint), and what
+    the sign-in page shows meanwhile (it can show the last workspace's branding);
+  - ⌘R while XUNA is still starting, a XUNA pop-up in a different theme from its tab, and a day
+    of normal use, all without the tabs turning themselves off.
 - **Ask the web team to keep the current workspace per tab** (`docs/multi-tab-workspaces.md`).
   Browser users have the same problem today, and the desktop's hook could then go.
 

@@ -65,16 +65,41 @@ function seedFor(workspaceId) {
 
 // Notices if XUNA stops reading the key the tabs keep apart. XUNA reads it before every request, so a
 // page whose sign-in check completes without having read it now keeps its workspace somewhere else,
-// which every tab would share. Pages are numbered by their WebContents id.
-function createIsolationGuard() {
-  const readSinceStart = new Map();
+// which every tab would share; onBroken is then called. Pages are numbered by their WebContents id.
+// The verdict waits a few seconds: the read and the completed request reach the main process by
+// different routes, and a check the previous page in the tab started can complete after the next page
+// has begun. A check whose page has since been replaced is let go; the new page's own check counts.
+function createIsolationGuard({ onBroken, wait = 5000, schedule = setTimeout }) {
+  const pages = new Map(); // id → { generation, read }
   return {
-    pageStarted: (id) => readSinceStart.set(id, false),
+    pageStarted: (id) => pages.set(id, { generation: (pages.get(id)?.generation ?? 0) + 1, read: false }),
     pageRead: (id) => {
-      if (readSinceStart.has(id)) readSinceStart.set(id, true);
+      const page = pages.get(id);
+      if (page) page.read = true;
     },
-    bootstrapCompleted: (id) => readSinceStart.get(id) === false,
+    bootstrapCompleted: (id) => {
+      const page = pages.get(id);
+      if (!page || page.read) return;
+      const { generation } = page;
+      schedule(() => {
+        const now = pages.get(id);
+        if (now?.generation === generation && !now.read) onBroken();
+      }, wait);
+    },
   };
+}
+
+// Which memory a XUNA page reads its workspace from, and whether it writes to it (report). A tab's own
+// page uses its tab's. A pop-up reads a copy of the tab it was opened from, recorded as it opened, so a
+// page that loads in it later, such as an OAuth return, acts on that tab even if another is in front
+// by then and the pop-up has lost its opener; without a record, its opener's tab; else the tab in
+// front. Each is a tab's memory (null when it has none yet), or undefined for no such tab.
+function memoryForPage({ ownTab, openedFrom, openerTab, frontTab }) {
+  if (ownTab !== undefined) return { memory: ownTab, report: true };
+  for (const memory of [openedFrom, openerTab, frontTab]) {
+    if (memory !== undefined) return { memory, report: false };
+  }
+  return null;
 }
 
 module.exports = {
@@ -86,4 +111,5 @@ module.exports = {
   workspaceOf,
   seedFor,
   createIsolationGuard,
+  memoryForPage,
 };

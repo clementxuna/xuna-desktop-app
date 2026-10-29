@@ -32,6 +32,11 @@ function isSafeExternalUrl(url) {
 function createPolicy({ appUrl, trustedDomain }) {
   const appOrigin = new URL(appUrl).origin;
 
+  // The app's own pages: the ones that share the profile's storage with every workspace tab.
+  function isAppPage(url) {
+    return parseUrl(url)?.origin === appOrigin;
+  }
+
   function isTrustedPage(url) {
     const u = parseUrl(url);
     if (!u) return false;
@@ -80,7 +85,7 @@ function createPolicy({ appUrl, trustedDomain }) {
     return TRUSTED_PAGE_PERMISSIONS.has(name);
   }
 
-  return { isTrustedPage, windowOpen, navigation, permission };
+  return { isAppPage, isTrustedPage, windowOpen, navigation, permission };
 }
 
 // Desktop Chrome's reduced user-agent string for the platform. Google refuses sign-in from browsers that identify as Electron.

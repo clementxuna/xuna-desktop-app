@@ -164,6 +164,15 @@ describe('isTrustedPage', () => {
   });
 });
 
+describe('isAppPage', () => {
+  test("only the app's own pages, whose storage the workspace tabs share, are app pages", () => {
+    for (const url of ['https://app.xuna.ai/', 'https://app.xuna.ai/dashboard?x=1']) assert.equal(policy.isAppPage(url), true, url);
+    for (const url of ['https://docs.xuna.ai/', 'https://xuna.ai/', 'http://app.xuna.ai/', 'https://app.xuna.ai.evil.example/', 'about:blank', '', undefined]) {
+      assert.equal(policy.isAppPage(url), false, String(url));
+    }
+  });
+});
+
 test('isSafeExternalUrl accepts web, email, phone and SMS links only', () => {
   for (const url of ['https://x.com/', 'http://x.com/', 'mailto:a@b.c', 'tel:+1555', 'sms:+1555']) assert.equal(isSafeExternalUrl(url), true, url);
   for (const url of ['file:///C:/x', 'javascript:alert(1)', 'ms-settings:privacy', 'search-ms:query=x', '', 'junk']) {

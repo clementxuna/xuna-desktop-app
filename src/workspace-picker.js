@@ -17,8 +17,9 @@ function canOffer({ type, onboardingStatus, billing }) {
   return type === 'PLATFORM' || billing?.buildingMode === true || text(onboardingStatus).toUpperCase() === 'COMPLETED';
 }
 
-// The answer's text → { uid, workspaces: [{ id, name, type, parentId }] }, or null when it isn't XUNA's
-// list, so the menu keeps what it had.
+// The answer's text → { uid, workspaces: [{ id, name, type, parentId }], names }, or null when it isn't
+// XUNA's list, so the menu keeps what it had. workspaces is what the menu offers; names (id → name)
+// covers every workspace in the answer, for naming the tabs whatever workspace they show.
 function parseBootstrap(responseText) {
   let body;
   try {
@@ -29,16 +30,17 @@ function parseBootstrap(responseText) {
   const payload = body?.data && typeof body.data === 'object' ? body.data : body;
   if (!payload || typeof payload !== 'object' || !Array.isArray(payload.accessList)) return null;
   const workspaces = [];
+  const names = new Map();
   for (const item of payload.accessList) {
     const workspace = item?.workspace;
     const id = text(workspace?.id);
-    if (!id || workspaces.some((known) => known.id === id)) continue;
-    const type = text(workspace.type).toUpperCase();
-    if (!canOffer({ ...workspace, type })) continue;
+    if (!id || names.has(id)) continue;
     const name = text(workspace.companyName) || text(workspace.name) || FALLBACK_NAME;
-    workspaces.push({ id, name, type, parentId: text(workspace.parentWorkspaceId) || null });
+    names.set(id, name);
+    const type = text(workspace.type).toUpperCase();
+    if (canOffer({ ...workspace, type })) workspaces.push({ id, name, type, parentId: text(workspace.parentWorkspaceId) || null });
   }
-  return { uid: text(payload.user?.uid) || null, workspaces };
+  return { uid: text(payload.user?.uid) || null, workspaces, names };
 }
 
 const byName = (left, right) => left.name.localeCompare(right.name);

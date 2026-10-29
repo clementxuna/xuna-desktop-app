@@ -176,3 +176,29 @@ test('the tab showing a workspace can be found, the one it last showed included'
   assert.equal(tabShowing(state, 'ws-3'), null);
   assert.equal(tabShowing({ tabs: tabs('workspace-1'), active: 'workspace-1' }, null), null); // a tab with no workspace yet
 });
+
+test('renaming a tab to the name it already shows keeps it following its workspace', () => {
+  const long = 'Acme Dental Group of Greater Springfield Clinics'; // longer than a typed name may be
+  const state = { tabs: [tab('workspace-1', { workspaceName: 'Acme' }), tab('workspace-2', { workspaceName: long }), tab('workspace-3')], active: 'workspace-1' };
+  assert.equal(renameTab(state, 'workspace-1', 'Acme').tabs[0].name, null);
+  assert.equal(renameTab(state, 'workspace-2', long).tabs[1].name, null);
+  assert.equal(renameTab(state, 'workspace-3', 'Workspace 3').tabs[2].name, null);
+  const renamed = renameTab(state, 'workspace-1', ' Acme ');
+  assert.equal(labelFor(nameWorkspaces(setTabMemory(renamed, 'workspace-1', seedFor('ws-1')), new Map([['ws-1', 'Beta']])).tabs[0]), 'Beta');
+});
+
+test("a tab that moves to another workspace drops the old one's name until it learns the new one", () => {
+  const state = { tabs: [tab('workspace-1', { memory: seedFor('ws-1'), workspaceName: 'Acme' })], active: 'workspace-1' };
+  const moved = setTabMemory(state, 'workspace-1', applyWrite(seedFor('ws-1'), ACTIVE_WORKSPACE_KEY, 'ws-2'));
+  assert.equal(moved.tabs[0].workspaceName, null);
+  const signedOut = setTabMemory(state, 'workspace-1', applyWrite(seedFor('ws-1'), ACTIVE_WORKSPACE_KEY, null));
+  assert.equal(signedOut.tabs[0].workspaceName, 'Acme'); // still the workspace it last showed
+});
+
+test('tabs saved when each had its own sign-in lose the names typed for tabs 2 to 9', () => {
+  // Those tabs may have been signed in to other accounts; they now show the shared sign-in's workspace.
+  const saved = { tabs: [{ id: 'workspace-1', name: 'Main' }, { id: 'workspace-2', name: 'Client B' }], active: 'workspace-2' };
+  assert.deepEqual(readTabs(saved).tabs.map((entry) => entry.name), ['Main', null]);
+  const current = { tabs: [{ id: 'workspace-1', name: 'Main', memory: null }, { id: 'workspace-2', name: 'Client B', memory: null }], active: 'workspace-2' };
+  assert.deepEqual(readTabs(current).tabs.map((entry) => entry.name), ['Main', 'Client B']);
+});

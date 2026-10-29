@@ -10,7 +10,7 @@ const { createUpdates } = require('./updates');
 const { titleBarColor, macAppViewBounds } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
-const { ACTIVE_WORKSPACE_KEY, TAB_KEY_PREFIXES, readMemory, applyWrite, workspaceOf, seedFor, createIsolationGuard } = require('./workspace-memory');
+const { ACTIVE_WORKSPACE_KEY, TAB_KEY_PREFIXES, readMemory, applyWrite, workspaceOf, seedFor, createIsolationGuard, memoryForPage } = require('./workspace-memory');
 const { parseBootstrap, pickerItems } = require('./workspace-picker');
 
 // XUNA_APP_URL points a development run at a preview or local deploy; installed copies always open the live app.
@@ -53,7 +53,9 @@ let updateNotification = null; // held, so a click on it still arrives
 // The account's workspaces for the + menu (src/workspace-picker.js): undefined until XUNA has listed them,
 // null once it has signed out.
 let workspaceList;
-const isolationGuard = createIsolationGuard();
+let workspaceNames = new Map(); // every workspace in XUNA's list, offered or not, for naming the tabs
+const isolationGuard = createIsolationGuard({ onBroken: () => turnOffTabs() });
+const popupOwners = new WeakMap(); // pop-up page → the tab it was opened from (see memoryForPage)
 let tabsTurnedOff = false; // the guard tripped (see turnOffTabs)
 
 if (!app.requestSingleInstanceLock()) {
@@ -166,6 +168,12 @@ function setTitleBarColor(color) {
 
 // Applied to every page the app shows, pop-ups included.
 function harden(contents) {
+  // A pop-up remembers the tab it was opened from, and the tab's memory then, in case the tab closes.
+  contents.on('did-create-window', (child) => {
+    const owner = tabOf(contents) ?? popupOwners.get(contents);
+    if (owner) popupOwners.set(child.webContents, { tabs: owner.tabs, id: owner.id, snapshot: owner.tabs.memoryOf(owner.id) ?? owner.snapshot ?? null });
+  });
+
   contents.setWindowOpenHandler((details) => {
     const verdict = policy.windowOpen({ ...details, openerUrl: contents.getURL() });
     if (verdict === 'in-app') {
@@ -415,7 +423,7 @@ function addWorkspaceTabs(win, webPreferences) {
   // A tab's page wrote to its workspace memory: the tab takes its workspace's name.
   const updateMemory = (id, memory) => {
     state = setTabMemory(state, id, memory);
-    if (Array.isArray(workspaceList)) state = nameWorkspaces(state, namesOf(workspaceList));
+    state = nameWorkspaces(state, workspaceNames);
     refresh();
   };
 
@@ -424,7 +432,7 @@ function addWorkspaceTabs(win, webPreferences) {
     idOf: (contents) => [...views].find(([, entry]) => entry.page === contents)?.[0] ?? null,
     activeId: () => state.active,
     count: () => state.tabs.length,
-    memoryOf: (id) => state.tabs.find((tab) => tab.id === id)?.memory ?? null,
+    memoryOf: (id) => state.tabs.find((tab) => tab.id === id)?.memory, // undefined for no such tab
     activePage: () => pageOf(state.active),
     setColor: (color) => {
       win.setBackgroundColor(color);
@@ -540,8 +548,6 @@ function anchorOf(rect) {
   return rect && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(rect[key])) ? rect : null;
 }
 
-const namesOf = (workspaces) => new Map(workspaces.map((workspace) => [workspace.id, workspace.name]));
-
 // The + menu's items (see pickerItems in src/workspace-picker.js) as a native menu.
 function pickerMenu(items, { select, open }) {
   const text = (label) => (IS_WINDOWS ? label.replaceAll('&', '&&') : label); // Windows reads & as a shortcut key
@@ -571,7 +577,7 @@ function tabOf(contents) {
 
 // Messages only a workspace tab's own XUNA page may send.
 function fromTabPage(event, act) {
-  const found = policy.isTrustedPage(event.senderFrame?.url) ? tabOf(event.sender) : null;
+  const found = policy.isAppPage(event.senderFrame?.url) ? tabOf(event.sender) : null;
   if (found) act(found.tabs, found.id);
 }
 
@@ -590,25 +596,33 @@ function onWorkspaceMemoryRequest(event) {
   event.returnValue = memory;
 }
 
+// Only the app's own pages share the tabs' storage, so only they get a tab's memory.
 function workspaceMemoryFor(contents, url) {
-  if (!USE_TABS || !policy.isTrustedPage(url)) return null;
-  let found = tabOf(contents);
-  const isTabPage = Boolean(found);
-  if (isTabPage) isolationGuard.pageStarted(contents.id); // a new page in the tab, which must read its workspace
-  for (let opener = contents, depth = 0; !found && opener && depth < 8; depth += 1) {
+  if (!USE_TABS || !policy.isAppPage(url)) return null;
+  const own = tabOf(contents);
+  if (own) isolationGuard.pageStarted(contents.id); // a new page in the tab, which must read its workspace
+  const record = own ? null : popupOwners.get(contents);
+  const openedFrom = record ? (record.tabs.memoryOf(record.id) ?? record.snapshot ?? null) : undefined;
+  let openerTab;
+  for (let opener = contents, depth = 0; !own && !record && openerTab === undefined && opener && depth < 8; depth += 1) {
     opener = opener.opener ? webContents.fromFrame(opener.opener) : null;
-    found = opener ? tabOf(opener) : null;
+    const found = opener ? tabOf(opener) : null;
+    if (found) openerTab = found.tabs.memoryOf(found.id);
   }
   const front = mainWindow && !mainWindow.isDestroyed() ? workspaceTabs.get(mainWindow) : null;
-  if (!found && front) found = { tabs: front, id: front.activeId() };
-  if (!found) return null;
-  const memory = found.tabs.memoryOf(found.id);
+  const page = memoryForPage({
+    ownTab: own ? own.tabs.memoryOf(own.id) : undefined,
+    openedFrom,
+    openerTab,
+    frontTab: front ? front.memoryOf(front.activeId()) : undefined,
+  });
+  if (!page) return null;
   return {
     prefixes: TAB_KEY_PREFIXES,
     activeKey: ACTIVE_WORKSPACE_KEY,
-    values: memory ? { ...memory.values } : null,
-    remembered: memory?.remembered ?? null,
-    report: isTabPage,
+    values: page.memory ? { ...page.memory.values } : null,
+    remembered: page.memory?.remembered ?? null,
+    report: page.report,
   };
 }
 
@@ -622,22 +636,25 @@ function onWorkspaceMemoryWrite(event, key, value) {
   });
 }
 
-// An answer to XUNA's sign-in check, from any XUNA page: the account's workspaces, and their names for the tabs.
+// An answer to XUNA's sign-in check, from any of the app's pages: the workspaces the + menu offers, and
+// the names of all the account's workspaces, for the tabs.
 function onWorkspaceList(event, responseText) {
-  if (!USE_TABS || typeof responseText !== 'string' || !policy.isTrustedPage(event.senderFrame?.url)) return;
+  if (!USE_TABS || typeof responseText !== 'string' || !policy.isAppPage(event.senderFrame?.url)) return;
   const parsed = parseBootstrap(responseText);
   if (!parsed) return;
   workspaceList = parsed.workspaces;
-  for (const win of BrowserWindow.getAllWindows()) workspaceTabs.get(win)?.nameAll(namesOf(workspaceList));
+  workspaceNames = parsed.names;
+  for (const win of BrowserWindow.getAllWindows()) workspaceTabs.get(win)?.nameAll(workspaceNames);
 }
 
-// See createIsolationGuard in src/workspace-memory.js: a tab's page whose sign-in check completes before it
-// has read its workspace keeps the workspace somewhere every tab shares.
+// See createIsolationGuard in src/workspace-memory.js: a tab's page whose sign-in check completes without
+// its having read its workspace keeps the workspace somewhere every tab shares. The page is checked,
+// not the request, so the guard holds wherever XUNA's API is.
 function watchSignInChecks() {
   session.defaultSession.webRequest.onCompleted({ urls: ['*://*/v2/auth/bootstrap*'] }, (details) => {
-    if (details.method !== 'POST' || details.statusCode < 200 || details.statusCode >= 300 || !policy.isTrustedPage(details.url)) return;
+    if (details.method !== 'POST' || details.statusCode < 200 || details.statusCode >= 300) return;
     const contents = details.webContentsId ? webContents.fromId(details.webContentsId) : null;
-    if (contents && tabOf(contents) && isolationGuard.bootstrapCompleted(contents.id)) turnOffTabs();
+    if (contents && tabOf(contents) && policy.isAppPage(contents.getURL())) isolationGuard.bootstrapCompleted(contents.id);
   });
 }
 

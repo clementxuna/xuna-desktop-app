@@ -56,6 +56,13 @@ function keepWorkspaceInTab({ prefixes, activeKey, values, remembered: remembere
     if (report) ipcRenderer.send('xuna:workspace-memory-write', key, value);
   };
   const workspacesListed = (responseText) => ipcRenderer.send('xuna:workspace-list', responseText);
+  // A page back from the back/forward cache starts no new preload, but the page shown meanwhile reset the
+  // guard, so it says again that it reads its workspace.
+  if (report) {
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted && readReported) ipcRenderer.send('xuna:workspace-memory-read');
+    });
+  }
 
   try {
     contextBridge.executeInMainWorld({ func: hookPage, args: [prefixes, read, write, workspacesListed] });

@@ -11,6 +11,7 @@ const {
   workspaceOf,
   seedFor,
   createIsolationGuard,
+  memoryForPage,
 } = require('../src/workspace-memory');
 
 const EXPLICIT_KEY = `${ACTIVE_WORKSPACE_KEY}:explicit`;
@@ -97,32 +98,94 @@ test('a tab that knows no workspace has none', () => {
   assert.equal(workspaceOf({ values: {}, remembered: null }), null);
 });
 
-test('the guard trips when a page checks its sign-in without having read its workspace', () => {
+// A guard whose timers run only when the test says so.
+function guardWithClock() {
+  const timers = [];
+  let trips = 0;
+  const guard = createIsolationGuard({ onBroken: () => (trips += 1), schedule: (run, wait) => timers.push({ run, wait }) });
+  const elapse = () => {
+    for (const timer of timers.splice(0)) timer.run();
+  };
+  return { guard, timers, elapse, trips: () => trips };
+}
+
+test("the guard trips when a page's sign-in check completes and the page still hasn't read its workspace soon after", () => {
   // XUNA reads the remembered workspace before every request, the sign-in check included. A page that
-  // never did has stopped using the key each tab keeps for itself, so tabs could mix up workspaces.
-  const guard = createIsolationGuard();
+  // never does has stopped using the key each tab keeps for itself, so tabs could mix up workspaces.
+  const { guard, timers, elapse, trips } = guardWithClock();
   guard.pageStarted(7);
-  assert.equal(guard.bootstrapCompleted(7), true);
+  guard.bootstrapCompleted(7);
+  assert.equal(trips(), 0);
+  assert.equal(timers[0].wait, 5000);
+  elapse();
+  assert.equal(trips(), 1);
 });
 
-test('the guard stays quiet for a page that read its workspace first', () => {
-  const guard = createIsolationGuard();
+test('a read that arrives just after the check completed keeps the guard quiet', () => {
+  // The read and the completed request reach the main process by different routes.
+  const { guard, elapse, trips } = guardWithClock();
+  guard.pageStarted(7);
+  guard.bootstrapCompleted(7);
+  guard.pageRead(7);
+  elapse();
+  assert.equal(trips(), 0);
+});
+
+test('a page that read its workspace first is not checked again', () => {
+  const { guard, timers } = guardWithClock();
   guard.pageStarted(7);
   guard.pageRead(7);
-  assert.equal(guard.bootstrapCompleted(7), false);
-  assert.equal(guard.bootstrapCompleted(7), false); // later checks in the same page
+  guard.bootstrapCompleted(7);
+  assert.equal(timers.length, 0);
+});
+
+test("an old page's sign-in check finishing after a reload doesn't trip the guard", () => {
+  const { guard, elapse, trips } = guardWithClock();
+  guard.pageStarted(7);
+  guard.pageRead(7);
+  guard.pageStarted(7); // the reload
+  guard.bootstrapCompleted(7); // the old page's check
+  guard.pageRead(7); // the new page reads as it starts
+  elapse();
+  guard.pageStarted(7);
+  guard.bootstrapCompleted(7);
+  guard.pageStarted(7); // another reload before the check is looked at
+  elapse();
+  assert.equal(trips(), 0);
 });
 
 test('each new page in a tab has to read its workspace again', () => {
-  const guard = createIsolationGuard();
+  const { guard, elapse, trips } = guardWithClock();
   guard.pageStarted(7);
   guard.pageRead(7);
-  guard.pageStarted(7); // a reload
-  assert.equal(guard.bootstrapCompleted(7), true);
+  guard.pageStarted(7);
+  guard.bootstrapCompleted(7);
+  elapse();
+  assert.equal(trips(), 1);
 });
 
 test('the guard ignores pages it was never told about', () => {
-  const guard = createIsolationGuard();
+  const { guard, timers } = guardWithClock();
   guard.pageRead(8);
-  assert.equal(guard.bootstrapCompleted(9), false);
+  guard.bootstrapCompleted(9);
+  assert.equal(timers.length, 0);
+});
+
+test("a tab's own page reads and writes its tab's memory", () => {
+  assert.deepEqual(memoryForPage({ ownTab: seedFor('ws-1'), frontTab: seedFor('ws-2') }), { memory: seedFor('ws-1'), report: true });
+  assert.deepEqual(memoryForPage({ ownTab: null }), { memory: null, report: true }); // a tab with no memory yet
+});
+
+test('a pop-up reads the tab it was opened from, even with another tab in front and no opener link', () => {
+  // An OAuth return can load in the pop-up long after it opened, once the user has moved to another tab.
+  assert.deepEqual(memoryForPage({ openedFrom: seedFor('ws-1'), openerTab: undefined, frontTab: seedFor('ws-2') }), { memory: seedFor('ws-1'), report: false });
+});
+
+test("a pop-up with no record reads its opener's tab, and failing that the tab in front", () => {
+  assert.deepEqual(memoryForPage({ openerTab: seedFor('ws-3'), frontTab: seedFor('ws-2') }), { memory: seedFor('ws-3'), report: false });
+  assert.deepEqual(memoryForPage({ frontTab: seedFor('ws-2') }), { memory: seedFor('ws-2'), report: false });
+});
+
+test('a page with no tab to go by keeps the shared storage', () => {
+  assert.equal(memoryForPage({}), null);
 });

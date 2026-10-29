@@ -52,7 +52,9 @@ test("a workspace is called by its company's name, else its own name, else what 
 
 test('the same answer without its { data } wrapper is read too, and a workspace listed twice counts once', () => {
   const parsed = parseBootstrap(JSON.stringify({ user: { uid: 'uid-2' }, accessList: [entry('c1', 'CLIENT', { companyName: 'One' }), entry('c1', 'CLIENT', { companyName: 'Again' })] }));
-  assert.deepEqual(parsed, { uid: 'uid-2', workspaces: [{ id: 'c1', name: 'One', type: 'CLIENT', parentId: null }] });
+  assert.equal(parsed.uid, 'uid-2');
+  assert.deepEqual(parsed.workspaces, [{ id: 'c1', name: 'One', type: 'CLIENT', parentId: null }]);
+  assert.deepEqual([...parsed.names], [['c1', 'One']]);
 });
 
 test("an answer that isn't XUNA's list is ignored, so the menu keeps what it had", () => {
@@ -62,7 +64,7 @@ test("an answer that isn't XUNA's list is ignored, so the menu keeps what it had
 });
 
 test('an account with no workspaces gets an empty list, and broken entries are skipped', () => {
-  assert.deepEqual(parseBootstrap(bootstrap([])), { uid: 'uid-1', workspaces: [] });
+  assert.deepEqual(parseBootstrap(bootstrap([])), { uid: 'uid-1', workspaces: [], names: new Map() });
   assert.deepEqual(parseBootstrap(bootstrap([null, { workspace: { id: '  ' } }, { membership: {} }])).workspaces, []);
 });
 
@@ -112,4 +114,12 @@ test('before XUNA has said which workspaces there are, the menu says so', () => 
   assert.deepEqual(pickerItems({ workspaces: undefined, openTabs: new Map(), canOpenMore: true }), [{ kind: 'note', label: 'Loading your workspaces…' }]);
   assert.deepEqual(pickerItems({ workspaces: null, openTabs: new Map(), canOpenMore: true }), [{ kind: 'note', label: 'Sign in to XUNA to open your workspaces' }]);
   assert.deepEqual(pickerItems({ workspaces: [], openTabs: new Map(), canOpenMore: true }), [{ kind: 'note', label: 'No workspaces to open' }]);
+});
+
+test("the answer names every workspace in it, including ones the menu doesn't offer, for the tabs", () => {
+  const { names } = parseBootstrap(bootstrap(platformAccount));
+  assert.equal(names.get('c4'), 'Half Done'); // still onboarding, so not in the menu
+  assert.equal(names.get('a3'), 'Not Ready Agency');
+  assert.equal(names.get('c1'), 'Zed Dental');
+  assert.equal(names.size, platformAccount.length);
 });

@@ -67,12 +67,13 @@ function runPreload({ seed, shared = {}, failHook = false } = {}) {
   const { FakeStorage, FakeXhr } = makeBrowser();
   const localStorage = new FakeStorage(shared);
   const fetched = [];
+  const listeners = {};
   globalThis.Storage = FakeStorage;
   globalThis.XMLHttpRequest = FakeXhr;
   globalThis.window = {
     localStorage,
     matchMedia: () => ({ matches: false, addEventListener() {} }),
-    addEventListener() {},
+    addEventListener: (type, listener) => (listeners[type] ??= []).push(listener),
     fetch: async () => ({ status: 200, clone: () => ({ text: async () => fetched.shift() ?? '' }) }),
   };
   const electron = {
@@ -106,7 +107,8 @@ function runPreload({ seed, shared = {}, failHook = false } = {}) {
       else delete globalThis[name];
     }
   };
-  return { sent, localStorage, page: globalThis.window, fetched, restore };
+  const dispatch = (type, event) => (listeners[type] ?? []).forEach((listener) => listener(event));
+  return { sent, localStorage, page: globalThis.window, fetched, dispatch, restore };
 }
 
 const tabSeed = (values, remembered = values?.[ACTIVE] ?? null, report = true) => ({ prefixes: PREFIXES, activeKey: ACTIVE, values, remembered, report });
@@ -217,4 +219,17 @@ test('if the hook cannot be installed, the page still loads, and the failure is 
   t.after(run.restore);
   assert.equal(run.localStorage.getItem(ACTIVE), 'ws-shared');
   assert.deepEqual(logged, ['[workspace tabs] Error: no main world']);
+});
+
+test('a page back from the back/forward cache says again that it reads its workspace, for the guard', (t) => {
+  // It starts no new preload, and the page shown meanwhile reset the guard (see createIsolationGuard).
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }) });
+  t.after(run.restore);
+  const reads = () => run.sent.filter(([channel]) => channel === 'xuna:workspace-memory-read').length;
+  run.dispatch('pageshow', { persisted: true });
+  assert.equal(reads(), 0); // it never read its workspace, so it has nothing to report
+  run.localStorage.getItem(ACTIVE);
+  run.dispatch('pageshow', { persisted: false }); // an ordinary load
+  run.dispatch('pageshow', { persisted: true });
+  assert.equal(reads(), 2);
 });

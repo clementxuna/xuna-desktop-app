@@ -31,18 +31,25 @@ function cleanName(name) {
 const cleanWorkspaceName = (name) => (typeof name === 'string' && name.trim() ? name.trim().slice(0, MAX_WORKSPACE_NAME_LENGTH) : null);
 
 // "Workspace N" only until the tab's workspace is known.
+const defaultLabel = (tab) => tab.workspaceName ?? `Workspace ${slotOf(tab.id)}`;
+
 function labelFor(tab) {
-  return tab.name ?? tab.workspaceName ?? `Workspace ${slotOf(tab.id)}`;
+  return tab.name ?? defaultLabel(tab);
 }
 
 // The saved tabs, as written by src/main.js. Entries that can't be trusted are dropped, and with none
 // left the window opens with tab 1 alone.
 function readTabs(saved) {
+  const entries = Array.isArray(saved?.tabs) ? saved.tabs : [];
+  // Tabs saved before they shared a sign-in each had their own, so a name typed for tabs 2 to 9 may
+  // name another account's workspace. Tab 1 kept the sign-in it has now.
+  const ownSignIns = !entries.some((entry) => entry && typeof entry === 'object' && 'memory' in entry);
   const tabs = [];
-  for (const entry of Array.isArray(saved?.tabs) ? saved.tabs : []) {
+  for (const entry of entries) {
     const slot = slotOf(entry?.id);
     if (slot < 1 || slot > MAX_TABS || tabs.some((tab) => tab.id === entry.id)) continue;
-    tabs.push({ id: entry.id, name: cleanName(entry.name), memory: readMemory(entry.memory), workspaceName: cleanWorkspaceName(entry.workspaceName) });
+    const name = ownSignIns && entry.id !== FIRST_TAB ? null : cleanName(entry.name);
+    tabs.push({ id: entry.id, name, memory: readMemory(entry.memory), workspaceName: cleanWorkspaceName(entry.workspaceName) });
   }
   if (tabs.length === 0) tabs.push(newTab(FIRST_TAB));
   const active = tabs.some((tab) => tab.id === saved?.active) ? saved.active : tabs[0].id;
@@ -86,18 +93,34 @@ function cycleTab(state, step) {
   return { ...state, active: state.tabs[(((index + step) % count) + count) % count].id };
 }
 
+// A tab renamed to the name it already shows keeps following its workspace's name.
 function renameTab(state, id, name) {
-  return { ...state, tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, name: cleanName(name) } : tab)) };
+  return {
+    ...state,
+    tabs: state.tabs.map((tab) => {
+      if (tab.id !== id) return tab;
+      const typed = cleanName(name);
+      return { ...tab, name: typed === cleanName(defaultLabel(tab)) ? null : typed };
+    }),
+  };
 }
 
-// What the tab's page wrote to its workspace memory (see applyWrite in src/workspace-memory.js).
+// What the tab's page wrote to its workspace memory (see applyWrite in src/workspace-memory.js). A tab
+// that moved to another workspace drops the old one's name until nameWorkspaces knows the new one's.
 function setTabMemory(state, id, memory) {
   if (!state.tabs.some((tab) => tab.id === id)) return state;
-  return { ...state, tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, memory } : tab)) };
+  return {
+    ...state,
+    tabs: state.tabs.map((tab) => {
+      if (tab.id !== id) return tab;
+      const moved = workspaceOf(memory) !== workspaceOf(tab.memory);
+      return { ...tab, memory, workspaceName: moved ? null : tab.workspaceName };
+    }),
+  };
 }
 
-// names: workspace id → name, from XUNA's list of the account's workspaces. Tabs showing a workspace
-// that isn't listed keep the name they had.
+// names: workspace id → name, for every workspace in XUNA's list of the account's (see parseBootstrap).
+// Tabs showing a workspace that isn't listed keep the name they had.
 function nameWorkspaces(state, names) {
   return {
     ...state,
