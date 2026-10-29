@@ -90,11 +90,28 @@ test("in one row XUNA's page fills the window, and the strip takes the left end 
 
 test("zooming XUNA's page scales its header, so the bar grows with it, and the room made in it is in the page's own pixels", () => {
   // At 125% the page is 1024 CSS px wide in a 1280-wide window.
-  const layout = macWindowLayout({ width: 1280, height: 820, fullScreen: false, header: xunaHeader({ innerWidth: 1024 }), cluster: { natural: 184, minimum: 184 } });
+  const layout = macWindowLayout({ width: 1280, height: 820, fullScreen: false, header: xunaHeader({ innerWidth: 1024 }), cluster: { natural: 184, minimum: 184 }, zoom: 1.25 });
   assert.equal(layout.barHeight, 70);
   assert.deepEqual(layout.strip, { x: 0, y: 0, width: 184, height: 70 });
   assert.deepEqual(layout.trafficLights, { x: 20, y: 27 });
   assert.equal(layout.inset, 147.2);
+});
+
+test("the bar follows the zoom the page is at, not the width the page last gave, which lags while the window is resized", () => {
+  // The window has just grown from 1280 to 1728 wide; the page still says it is 1280 CSS px wide.
+  const layout = macWindowLayout({ width: 1728, height: 1000, fullScreen: false, header: xunaHeader({ innerWidth: 1280 }), cluster: { natural: 184, minimum: 184 }, zoom: 1 });
+  assert.equal(layout.barHeight, 56);
+  assert.deepEqual(layout.trafficLights, { x: 20, y: 20 });
+  assert.equal(layout.inset, 184);
+});
+
+test("one row needs XUNA's desktop header, which it shows from 1024 CSS px wide: narrower, its menu covers the whole page", () => {
+  const cluster = { natural: 184, minimum: 184 };
+  const at = (width, zoom = 1) => macWindowLayout({ width, height: 800, fullScreen: false, header: xunaHeader({ minWidth: 450, innerWidth: width / zoom }), cluster, zoom }).mode;
+  assert.equal(at(1023), 'strip');
+  assert.equal(at(1024), 'one-row');
+  assert.equal(at(1200, 1.25), 'strip'); // the page 960 CSS px wide
+  assert.equal(at(1280, 1.25), 'one-row'); // 1024
 });
 
 test("tabs that want more room than XUNA's header can spare shrink, keeping 64px of the header free to drag the window by", () => {
@@ -102,18 +119,19 @@ test("tabs that want more room than XUNA's header can spare shrink, keeping 64px
   const cluster = { natural: 600, minimum: 300 };
   const header = xunaHeader({ minWidth: 600 });
   assert.equal(macWindowLayout({ width: 1280, height: 820, fullScreen: false, tabCount: 4, header, cluster }).strip.width, 600);
-  const narrow = macWindowLayout({ width: 1000, height: 820, fullScreen: false, tabCount: 4, header: { ...header, innerWidth: 1000 }, cluster });
+  const narrow = macWindowLayout({ width: 1100, height: 820, fullScreen: false, tabCount: 4, header: { ...header, innerWidth: 1100 }, cluster });
   assert.equal(narrow.mode, 'one-row');
-  assert.equal(narrow.strip.width, 336); // 1000 − 600 − 64
+  assert.equal(narrow.strip.width, 436); // 1100 − 600 − 64
 });
 
 test("the strip comes back when even the smallest tabs won't fit, on a page without XUNA's header, and until the strip has measured itself", () => {
-  const strip = { mode: 'strip', page: { x: 0, y: 40, width: 900, height: 780 }, strip: { x: 0, y: 0, width: 900, height: 40 }, trafficLights: { x: 14, y: 12 }, inset: 0, barHeight: 40, barBottom: 40 };
+  const strip = { mode: 'strip', page: { x: 0, y: 40, width: 1100, height: 780 }, strip: { x: 0, y: 0, width: 1100, height: 40 }, trafficLights: { x: 14, y: 12 }, inset: 0, barHeight: 40, barBottom: 40 };
   const cluster = { natural: 600, minimum: 300 };
-  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, tabCount: 4, header: xunaHeader({ minWidth: 600, innerWidth: 900 }), cluster }), strip);
-  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, header: null, cluster }), strip);
-  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, header: xunaHeader({ innerWidth: 900 }), cluster: null }), strip);
-  assert.deepEqual(macWindowLayout({ width: 900, height: 820, fullScreen: false, header: xunaHeader({ innerWidth: 900 }), cluster: { natural: 184, minimum: 184 }, oneRow: false }), strip);
+  const header = xunaHeader({ innerWidth: 1100 });
+  assert.deepEqual(macWindowLayout({ width: 1100, height: 820, fullScreen: false, tabCount: 4, header: { ...header, minWidth: 800 }, cluster }), strip); // 1100 − 800 − 64 < 300
+  assert.deepEqual(macWindowLayout({ width: 1100, height: 820, fullScreen: false, header: null, cluster }), strip);
+  assert.deepEqual(macWindowLayout({ width: 1100, height: 820, fullScreen: false, header, cluster: null }), strip);
+  assert.deepEqual(macWindowLayout({ width: 1100, height: 820, fullScreen: false, header, cluster: { natural: 184, minimum: 184 }, oneRow: false }), strip);
 });
 
 test("full screen keeps today's rule, as macOS shows the three buttons there only with the menu bar: no bar with one tab, the strip with more", () => {
@@ -139,6 +157,13 @@ test("what a page says about XUNA's header is taken only when it is plausible, k
   assert.equal(odd.background, null);
   assert.equal(odd.border, null);
   assert.deepEqual(odd.cover, { filter: null, tint: 'blue' });
+});
+
+test("colours in CSS's newer syntax, as Chromium gives Tailwind's, are kept", () => {
+  const report = headerReport(xunaHeader({ background: 'oklch(0.985 0 0)', border: 'oklab(0.92 0 0 / 0.8)', cover: { filter: 'blur(16px) saturate(1.25)', tint: 'oklab(0 0 0 / 0.1)' } }));
+  assert.equal(report.background, 'oklch(0.985 0 0)');
+  assert.equal(report.border, 'oklab(0.92 0 0 / 0.8)');
+  assert.equal(report.cover.tint, 'oklab(0 0 0 / 0.1)');
 });
 
 test("the strip's measure of its tabs is taken only when it makes sense", () => {

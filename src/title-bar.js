@@ -35,20 +35,24 @@ function macAppViewBounds({ width, height, fullScreen, tabCount = 1 }) {
 // the title bar. The strip's view covers only the bar's left end, which holds the three buttons, Back
 // and Forward, the tabs and +, and XUNA's header moves over to make room (src/one-row.css), keeping at
 // least this much of itself empty to drag the window by. The three buttons sit in the middle of the
-// header, this far from the window's edge.
+// header, this far from the window's edge. XUNA shows its desktop header only on a page at least
+// ONE_ROW_MIN_PAGE_WIDTH CSS px wide; narrower, it opens a menu over the whole page, whose top left
+// would be under the strip.
 const ONE_ROW_MIN_DRAG = 64;
+const ONE_ROW_MIN_PAGE_WIDTH = 1024;
 const ONE_ROW_TRAFFIC_LIGHTS_X = 20;
 const TRAFFIC_LIGHT_HEIGHT = 16; // the frame macOS draws each button in
 
 const within = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
-const CSS_COLOR = /^[#a-z0-9\s(),.%-]{1,120}$/i;
+const CSS_COLOR = /^[#a-z0-9\s(),.%/-]{1,120}$/i; // "/" for an alpha in the newer syntax: oklab(0 0 0 / 0.1)
 const isColor = (value) => typeof value === 'string' && CSS_COLOR.test(value) && !/url\(/i.test(value);
 const BACKDROP_FILTER = /^(?:(?:blur|saturate|brightness|contrast)\(\s*[\d.]+(?:px|%)?\s*\)\s*)+$/;
 
 // What a tab's page says about XUNA's header (see watchHeader in src/preload.js), or null when it isn't
 // plausible: its height and the room its contents need, in the page's CSS pixels; the page's own width
-// in them, which gives its zoom; its colours; and how anything covering it looks, such as the blurred
-// backdrop behind a XUNA dialog. Colours and filters that aren't plain CSS are dropped.
+// in them, which changes with its zoom and so brings a fresh report; its colours; and how anything
+// covering it looks, such as the blurred backdrop behind a XUNA dialog. Colours and filters that aren't
+// plain CSS are dropped.
 function headerReport(report) {
   if (!within(report?.height, 40, 80) || !within(report.minWidth, 0, 4000) || !within(report.innerWidth, 200, 10000)) return null;
   const cover = report.cover && typeof report.cover === 'object'
@@ -76,12 +80,14 @@ function clusterReport(widths) {
 
 // Where everything goes in a Mac window with this content size. header: the tab in front's XUNA header
 // (headerReport), or null; cluster: the strip's measure (clusterReport), or null until it has measured
-// itself. One row needs both, and room beside XUNA's header for the tabs at their narrowest; otherwise,
-// and in full screen, the strip sits above the page as before. inset is the room made in XUNA's header,
-// in its CSS pixels; barBottom is where the bar ends, which the + panel opens below.
-function macWindowLayout({ width, height, fullScreen, tabCount = 1, header = null, cluster = null, oneRow = true }) {
-  if (oneRow && !fullScreen && header && cluster) {
-    const zoom = width / header.innerWidth;
+// itself; zoom: the page's zoom, as the main process knows it (the page's own report of its width lags
+// while the window is resized). One row needs a header and a measure, a page wide enough for XUNA's
+// desktop header, and room beside it for the tabs at their narrowest; otherwise, and in full screen, the
+// strip sits above the page as before. inset is the room made in XUNA's header, in its CSS pixels;
+// barBottom is where the bar ends, which the + panel opens below.
+function macWindowLayout({ width, height, fullScreen, tabCount = 1, header = null, cluster = null, zoom = 1, oneRow = true }) {
+  zoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  if (oneRow && !fullScreen && header && cluster && width / zoom >= ONE_ROW_MIN_PAGE_WIDTH) {
     const available = width - Math.ceil(header.minWidth * zoom) - ONE_ROW_MIN_DRAG;
     if (cluster.minimum <= available) {
       const barHeight = Math.round(header.height * zoom);
