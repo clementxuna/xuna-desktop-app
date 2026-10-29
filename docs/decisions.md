@@ -49,25 +49,61 @@ reason for it.
 
 ## Title bar
 
-- **On Mac, a strip in XUNA's black or white behind macOS's three buttons.** macOS's own title
+- **On Mac, a bar in XUNA's own colours behind macOS's three buttons.** macOS's own title
   bar is grey in dark mode and follows the system's setting rather than XUNA's, and forcing
   the system theme instead would trap a page set to follow the system on its last colour.
-  - The window hides the title bar (`titleBarStyle: 'hidden'`), which keeps the buttons. The
-    strip they sit on is the window's background colour, which the main process sets from the
-    theme the page reports. It is 40 pixels, a little taller than macOS's own 28, so its tabs and
-    buttons can be 28 pixels with room round them, and the three buttons are moved down to its
-    middle (`trafficLightPosition`), level with them.
-  - The strip is transparent and declares no colour scheme, so the window's colour is all that
-    shows. Chromium paints a page in a dark colour scheme with its own grey, #121212. In 1.2.0
-    the strip declared one, and the bar showed grey above XUNA's black header.
-  - XUNA's page is a `WebContentsView` below the strip, because a page that filled the window
-    would sit under the buttons. The window's own page is `src/title-strip.html`, which makes
-    the strip drag the window and draws the workspace tab buttons (see "Workspace tabs"). In
-    full screen the strip goes and the page fills the screen, unless two or more tabs are open.
+  - The window hides the title bar (`titleBarStyle: 'hidden'`), which keeps the buttons. The bar
+    is drawn by `src/title-strip.html` in a `WebContentsView` of its own, kept above the XUNA
+    pages, each of which is a view too; the window's own page stays empty. Where the tab in front
+    shows XUNA's header the bar is one row (below). Elsewhere, on the sign-in page say, it is the
+    strip above the page: 40 pixels, a little taller than macOS's own 28, so its tabs and buttons
+    can be 28 pixels with room round them, in XUNA's black or white from the theme the page
+    reports, with the three buttons moved down to its middle, level with them.
+  - The strip declares no colour scheme. Chromium paints a page in a dark colour scheme with its
+    own grey, #121212. In 1.2.0 the strip declared one, and the bar showed grey above XUNA's
+    black header.
+  - In full screen there is no bar and the page fills the screen, unless two or more tabs are
+    open; then the strip stays, so they can still be switched.
   - Closing the window first closes XUNA's pages, so their "Leave this page?" check still
     runs, and a quit that a page held up finishes once they have closed. Back, Forward, Reload
     and Developer Tools act on the XUNA page shown, not the strip.
   - Sign-in and connect pop-ups keep macOS's standard title bar.
+- **One row: XUNA's header is the title bar.** A strip stacked above XUNA's own 56-pixel header
+  made two bars, with search and Ask AI twice, where Mac apps such as Slack, Linear and Notion
+  put the window's buttons in their own top bar. So where the tab in front shows XUNA's header,
+  its page fills the window, the three buttons move into the header's middle, and the strip's view
+  covers only the bar's left end: Back and Forward, the workspace tabs and +. XUNA's header moves
+  over to make room and carries on from there, with its own search and Ask AI (`macWindowLayout`
+  in `src/title-bar.js`).
+  - Nothing changes in XUNA's web app. The preload finds XUNA's header (the `<header>` holding
+    its home link, along the top of the page), reports its height, the room its contents need,
+    its colours and the page's zoom, and applies the room the main process makes. The rules that
+    make it are `src/one-row.css`, which the main process puts into each tab's page and which do
+    nothing until the preload switches one row on.
+  - Electron drags a window from any visible view's drag area, whatever lies on top of it, and
+    works out a page's drag area in page order, later elements over earlier ones (Electron 44.9.3:
+    `NativeWindow::NonClientHitTest` asks every view in turn). So no view's drag area may lie
+    under another view's controls. XUNA's header moves over with a margin, not padding, so its box,
+    and so its drag area, starts where the strip ends. Its controls are no-drag, as are XUNA's
+    dialogs, menus and drawers (in layers at the end of the page) and its toasts. While something
+    covers the whole header, as a dialog's backdrop does, the header doesn't drag at all. The +
+    panel opens below the bar for the same reason.
+  - The tabs come before XUNA's logo, not after it: the logo belongs to the tab's page (a
+    white-labelled workspace shows its own), the tabs to the window.
+  - Where one row can't work, the strip comes back: on pages without XUNA's header (or if XUNA
+    changes it past recognising), in full screen, and when even the narrowest tabs wouldn't leave
+    XUNA's header its room and 64 pixels to drag the window by. The strip measures its left end
+    for this the same way in either mode, so the choice never changes what it was made on.
+  - It follows the page's zoom: the bar is as tall as the zoomed header, and the room made in the
+    header is in the page's own pixels. The strip's own controls stay their size, as a browser's
+    do when a page is zoomed.
+  - While a XUNA dialog's blurred backdrop covers the page, the bar's left end takes on the same
+    look, from the backdrop's blur and tint as the page reports them, and takes no clicks.
+- **Back and Forward in the bar,** after the three buttons, as Slack, Notion and Arc have them:
+  the app has no browser buttons, and ⌘[ and ⌘] had nothing to click. They act on the tab in
+  front and are dimmed while there is nowhere to go.
+- **The bar fades while the window is in the background,** as macOS's own toolbars do: the
+  strip's controls and, in one row, XUNA's header's contents, both at once.
 - **Ask AI at the strip's right end, beside the + button,** where XUNA's header puts its own next
   to the workspace switcher. It presses XUNA's own Ask AI button in the tab in front (the header
   button, `aria-label="Ask AI"`), so the assistant opens and closes exactly as it does from
@@ -78,6 +114,7 @@ reason for it.
     computes in each theme, and XUNA's orb (SiriOrb) ported to CSS, in the workspace's own orb
     colours, so a white-labelled workspace's shows its brand. It turns, drifts and breathes as
     XUNA's does, and stands still with Reduce Motion on. The strip's type is XUNA's Inter.
+  - In one row it goes: XUNA's own Ask AI is in the same row.
 - **The colours are exactly XUNA's header's:** `#030303` in dark mode (the page colour, which
   the header shares there) and white in light mode, so the title bar and the header read as one
   band. They live in `src/config.js` and have to follow the web app if its header changes colour.
@@ -94,9 +131,9 @@ reason for it.
 
 ## Workspace tabs (Mac)
 
-- **Several workspaces open at once, as tabs in the title bar strip.** They sit at the strip's
-  right end, so they stay clear of macOS's three buttons. With one tab open only the + button
-  shows. Each tab is its own `WebContentsView`, and only the one shown is visible. The others
+- **Several workspaces open at once, as tabs in the title bar.** In one row they follow Back
+  and Forward at the bar's left end, before XUNA's header; in the strip they sit at its right
+  end, clear of macOS's three buttons. With one tab open only the + button shows. Each tab is its own `WebContentsView`, and only the one shown is visible. The others
   keep running, so a call or a draft carries on in the background. The window opens with the
   saved tabs, their names and the one that was shown (`workspace-tabs.json` in the app's data).
 - **All tabs share one sign-in, and each keeps its own workspace.** Every tab uses the profile
@@ -169,13 +206,15 @@ reason for it.
   tab shown (only when more than one is open, and only while the main window is in front), ⌘1
   to ⌘9 show one and ⌃Tab steps through them. The Window menu lists the tabs. At most nine tabs
   can be open, one for each of ⌘1 to ⌘9.
+- **Tabs move and have a menu, as in Safari:** dragging a tab along the bar moves it, and ⌘1 to
+  ⌘9 follow the new order; right-clicking one offers Rename Tab…, Close Tab and Close Other Tabs.
 - **Closing a tab asks its page first,** as closing the window does. The tab whose page asks
   "Leave this page?" comes to the front. Answering Stay keeps it. When the window is closing,
   Stay also keeps the window open and reopens the pages already closed.
 - **The strip is a local page with its own sandboxed preload** (`src/title-strip-preload.js`)
-  that passes button clicks to the main process. Its policy allows only its own script. The
-  main process acts only on requests from the main window's own strip. XUNA pages never get
-  the tab controls.
+  that passes button clicks to the main process. Its policy allows only its own scripts. It is
+  in a view of its own, and the main process listens only to that view's page. XUNA pages never
+  get the tab controls.
 
 ## Mac
 

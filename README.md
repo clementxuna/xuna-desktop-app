@@ -17,21 +17,26 @@ build from the same code.
 - The window's title bar follows the app's theme: black in dark mode, white in light mode.
   `src/preload.js` reports the theme the page shows. On Windows it is Windows' own title bar,
   recoloured (Windows 11; Windows 10 keeps its standard title bar). On Mac the app hides
-  macOS's title bar and keeps its three buttons over a strip of that colour, with XUNA below it.
+  macOS's title bar, and XUNA's own header is the title bar, in one row: macOS's three buttons,
+  Back and Forward, the workspace tabs and + sit at its left end, and XUNA's header carries on
+  from there. Where XUNA shows no header, as on the sign-in page, a strip of that colour runs
+  above XUNA instead.
 - On Mac, XUNA's servers can send push notifications through Apple (APNs), and macOS shows
   them even when the app is closed. The app registers with Apple at start-up and gives XUNA
   pages one function, `window.xunaDesktop.getPushRegistration()`, to read where to send
   them. [docs/push-notifications.md](docs/push-notifications.md) covers what XUNA's servers
   need to do.
 - On Mac it behaves like a Mac app: closing the window keeps XUNA AI in the Dock, clicking
-  the Dock icon opens it again, and it has the usual app and Window menus. Ask AI, at the right
-  end of the title bar, opens XUNA's assistant in the tab in front, as XUNA's own button does.
-- On Mac, several workspaces can be open at once, as tabs at the right end of the title bar
-  strip. The + button (⌘T) opens a panel drawn like XUNA's own workspace picker: a search
+  the Dock icon opens it again, and it has the usual app and Window menus. Back and Forward sit
+  after the three buttons. In the strip, Ask AI at its right end opens XUNA's assistant in the tab
+  in front, as XUNA's own button does; in one row XUNA's own Ask AI is in the bar. The bar fades
+  while the window is in the background.
+- On Mac, several workspaces can be open at once, as tabs in the title bar. The + button (⌘T) opens a panel drawn like XUNA's own workspace picker: a search
   field over the workspaces the signed-in account can open, grouped as in XUNA's switcher, with
   their logos. Picking one opens it in a new tab, already signed in, or shows the tab it is open
-  in (open tabs show their ⌘ shortcut). Clicking a tab, ⌘1 to ⌘9 or ⌃Tab switches between them, and double-clicking a tab
-  renames it. The tabs share one sign-in, and each keeps its own workspace, so tabs never switch
+  in (open tabs show their ⌘ shortcut). Clicking a tab, ⌘1 to ⌘9 or ⌃Tab switches between them,
+  double-clicking a tab renames it, dragging one moves it, and right-clicking one offers Rename
+  Tab…, Close Tab and Close Other Tabs. The tabs share one sign-in, and each keeps its own workspace, so tabs never switch
   each other's workspace. Each tab is named after its workspace, and the open tabs come back in
   their workspaces when the app reopens (`src/workspace-tabs.js`, `src/workspace-memory.js`,
   `src/workspace-picker.js`).

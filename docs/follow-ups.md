@@ -80,9 +80,24 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
   - the + panel beside XUNA's own picker, in both themes: the type, colours, logos and shadow,
     searching, the arrow keys, Escape, clicking away (including onto another tab), ⌘T, a long
     list that scrolls, and full screen;
-  - the 40px strip: the three window buttons in its middle, level with the tabs, + and Ask AI;
-    Ask AI opening and closing XUNA's assistant in the tab in front, dimmed on the sign-in page,
-    and its orb beside XUNA's own (in a white-labelled workspace too).
+  - in the strip, Ask AI opening and closing XUNA's assistant in the tab in front, dimmed on the
+    sign-in page, and its orb beside XUNA's own (in a white-labelled workspace too).
+- **Try the one-row title bar on a Mac.** It was tried end to end in a Windows development run
+  (`XUNA_WORKSPACE_TABS=1`) against a stand-in for XUNA's header, where Windows' own frame
+  ignores drag areas, so the dragging itself hasn't been tried. On a Mac, check:
+  - dragging the window by XUNA's header's empty space and by the bar's left end, and
+    double-clicking either to zoom; that XUNA's header controls, its menus, the notifications
+    drawer, dialogs and toasts all still take clicks;
+  - the three buttons in the middle of XUNA's header in one row, and level with the tabs in the
+    40px strip, moving between the two as you sign in and out;
+  - one row with one tab and with several, in both themes; a narrow window falling back to the
+    strip and back; ⌘+ and ⌘− keeping the bar in line; full screen;
+  - a XUNA dialog blurring the bar's left end with the page, and the bar fading while the window
+    is in the background;
+  - Back and Forward, dragging a tab to a new place, and a tab's right-click menu.
+  - To see the drag areas Electron hit-tests, run `ELECTRON_DEBUG_DRAGGABLE_REGIONS=1 npm start`
+    (development runs only). In a Windows run it hung the main process as the + panel opened
+    (Electron 44.9.3), so open the panel without it.
 - **Ask the web team to keep the current workspace per tab** (`docs/multi-tab-workspaces.md`).
   Browser users have the same problem today, and the desktop's hook could then go.
 
@@ -113,6 +128,14 @@ None of these is visible to users today.
   - Theme reports could be limited explicitly to the main window.
   - The preload could guard against very early theme changes and batch its reports.
   - Tests are missing for the `only light` case and for a pure trust check.
+- **One row (Mac):**
+  - It depends on XUNA's header as the page lays it out today: a `<header>` along the top
+    holding its home link (`aria-label="Go to home"`). If XUNA changes that, the window falls
+    back to the strip until the desktop app learns the new header.
+  - An overlay that XUNA puts over its header from earlier in the page, outside its layers and
+    toasts, and that covers only part of the header, would drag the window where it lies over the
+    header's empty space. None does today.
+  - Under a dialog's backdrop a faint seam can show where the bar's left end meets XUNA's header.
 - **Workspace tabs (Mac):**
   - A tab isn't named after its workspace automatically, because XUNA's page title is always
     "XUNA AI". Tabs are named "Workspace N" until renamed. The web app could set
