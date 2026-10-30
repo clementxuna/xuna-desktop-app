@@ -2,7 +2,18 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { lightsZone, clusterWidths, dropIndex, dragShifts } = require('../src/title-strip-layout');
+const { lightsZone, clusterWidths, dropIndex, dragShifts, shownTabs } = require('../src/title-strip-layout');
+
+test('a tab on its own shows once it stands for a workspace you are in; before that (a new copy at the sign-in page, signed out) the bar shows none', () => {
+  const inWorkspace = { id: 'workspace-1', label: 'Acme Agency', active: true, known: true };
+  const notYet = { id: 'workspace-1', label: 'Workspace 1', active: true, known: false };
+  assert.deepEqual(shownTabs([inWorkspace]), [inWorkspace]);
+  assert.deepEqual(shownTabs([notYet]), []);
+  // several tabs always show, as they did
+  const another = { id: 'workspace-2', label: 'Workspace 2', active: false, known: false };
+  assert.deepEqual(shownTabs([inWorkspace, another]), [inWorkspace, another]);
+  assert.deepEqual(shownTabs([]), []);
+});
 
 test("the strip's controls start clear of macOS's three buttons, which sit further in in one row; without them, at a margin", () => {
   assert.equal(lightsZone({ lights: true, mode: 'strip' }), 90);

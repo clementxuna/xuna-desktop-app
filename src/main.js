@@ -9,6 +9,7 @@ const { buildAppMenu, attachContextMenu, tabMenuTemplate } = require('./menus');
 const { createUpdates } = require('./updates');
 const { reloadOnCrash } = require('./reload-on-crash');
 const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macWindowLayout, headerReport, clusterReport, askAiState } = require('./title-bar');
+const { shownTabs } = require('./title-strip-layout');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, moveTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
 const { ACTIVE_WORKSPACE_KEY, TAB_KEY_PREFIXES, readMemory, applyWrite, workspaceOf, seedFor, createIsolationGuard, memoryForPage } = require('./workspace-memory');
@@ -378,13 +379,24 @@ function addWorkspaceTabs(win, webPreferences) {
     }
   };
 
+  // The tabs as the strip draws them (shownTabs in src/title-strip-layout.js). known: the tab stands for a
+  // workspace you are in, by its name or its workspace's; not before sign-in, signed out, or with tabs
+  // turned off, when a tab on its own isn't drawn.
+  const stripTabs = () =>
+    state.tabs.map((tab) => ({
+      id: tab.id,
+      label: labelFor(tab),
+      active: tab.id === state.active,
+      known: !tabsTurnedOff && workspaceList !== null && Boolean(tab.name || tab.workspaceName),
+    }));
+
   const sendToStrip = () => {
     if (stripPage.isDestroyed()) return;
     const page = pageOf(state.active);
     const header = headers.get(state.active);
     const oneRow = bar?.mode === 'one-row';
     stripPage.send('xuna:workspace-tabs', {
-      tabs: state.tabs.map((tab) => ({ id: tab.id, label: labelFor(tab), active: tab.id === state.active })),
+      tabs: stripTabs(),
       dark: titleBar === config.BACKGROUND.dark,
       askAi: askAiState(askAi.get(state.active)),
       // In one row the bar is XUNA's header: it takes the header's colours, and looks covered when the page is.
@@ -650,11 +662,15 @@ function addWorkspaceTabs(win, webPreferences) {
     // While a tab's name is typed the keys go to the strip; afterwards, back to XUNA.
     editing: (active) => (active ? stripPage : pageOf(state.active))?.focus(),
     // The tab shown, unless another is named (from its own menu).
+    // Only a tab the bar shows: none while the bar is hidden (full screen with one tab), and not a tab on its
+    // own that isn't drawn yet, or the keyboard would go to the strip with no name field to type in.
     startRename: (id = state.active) => {
-      if (!state.tabs.some((tab) => tab.id === id)) return; // a tab on its own shows too, so it can be renamed
+      if (!bar?.strip || !shownTabs(stripTabs()).some((tab) => tab.id === id)) return;
       stripPage.focus();
       stripPage.send('xuna:workspace-tab-rename', id);
     },
+    // The strip draws the tabs again, after something they depend on changed outside them.
+    redraw: () => sendToStrip(),
     // A page asking "Leave this page?" is shown first.
     reveal: (contents) => {
       const id = [...views].find(([, entry]) => entry.page === contents)?.[0];
@@ -833,6 +849,7 @@ function turnOffTabs() {
   tabsTurnedOff = true;
   console.error('[workspace tabs] a page checked its sign-in without reading its workspace; tabs turned off');
   const tabs = mainWindow && !mainWindow.isDestroyed() ? workspaceTabs.get(mainWindow) : null;
+  tabs?.redraw(); // a tab on its own stops showing, as its name would no longer follow its workspace
   if (!tabs || tabs.count() < 2) return;
   showMessage({
     type: 'warning',

@@ -47,6 +47,13 @@ function dragShifts({ count, from, to, width }) {
   });
 }
 
-const api = { LIGHTS, TAB_MIN_WIDTH, TAB_GAP, GAP, END_PADDING, lightsZone, clusterWidths, dropIndex, dragShifts };
+// The tabs the strip draws: all of them, a tab on its own included, as you are always in a workspace,
+// once it stands for one you are in (known, as the main process says). Before that, a new copy at the
+// sign-in page, signed out, or with tabs turned off, a tab on its own isn't drawn.
+function shownTabs(tabs) {
+  return tabs.length === 1 && !tabs[0].known ? [] : tabs;
+}
+
+const api = { LIGHTS, TAB_MIN_WIDTH, TAB_GAP, GAP, END_PADDING, lightsZone, clusterWidths, dropIndex, dragShifts, shownTabs };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else globalThis.titleStripLayout = api; // the strip's page loads this as a plain script

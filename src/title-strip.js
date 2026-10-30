@@ -3,8 +3,8 @@
 // Draws the Mac title strip (src/title-strip.html) from what the main process sends (see
 // addWorkspaceTabs in src/main.js), and passes its clicks back through src/title-strip-preload.js: XUNA's
 // logo, which goes home in the tab in front, Back and Forward, the workspace tabs, the + button and, in
-// the strip, Ask AI. You are always in a workspace, so its tab always shows, alone too, without its ×
-// then, as the last tab can't close. + opens a menu of the account's workspaces, below it. Clicking a
+// the strip, Ask AI. Signed in, you are always in a workspace, so its tab shows, alone too (shownTabs),
+// without its × then, as the last tab can't close. + opens a menu of the account's workspaces, below it. Clicking a
 // tab shows it, double-clicking renames it, right-clicking opens its menu and dragging moves it. Ask AI
 // presses XUNA's own in the tab in front, and is drawn as XUNA draws it.
 
@@ -121,8 +121,9 @@ function measure() {
 }
 
 function render() {
-  list.replaceChildren(...current.tabs.map((tab) => tabButtons(tab, true)));
-  measurer.replaceChildren(...current.tabs.map((tab) => tabButtons(tab, false)));
+  const shown = layout.shownTabs(current.tabs);
+  list.replaceChildren(...shown.map((tab) => tabButtons(tab, true)));
+  measurer.replaceChildren(...shown.map((tab) => tabButtons(tab, false)));
 }
 
 // A tab's buttons: its name, which shows it, and its close button. live: false for the measurer's copy.
@@ -181,7 +182,7 @@ function crossIcon() {
 // pointer isn't captured, since a captured press sends its click to the tab instead of its name, which
 // then never shows the tab; the page follows the press instead, for as long as the button is down.
 function startDrag(event, id, item) {
-  if (event.button !== 0 || renaming) return;
+  if (event.button !== 0 || renaming || list.children.length < 2) return; // a tab on its own has nowhere to go
   const items = [...list.children];
   const centers = items.map((element) => {
     const box = element.getBoundingClientRect();

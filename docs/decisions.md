@@ -159,10 +159,16 @@ reason for it.
 
 - **Several workspaces open at once, as tabs in the title bar.** In one row they follow Back
   and Forward at the bar's left end, before XUNA's header; in the strip they sit at its right
-  end, clear of macOS's three buttons. You are always in a workspace, so its tab always shows, on its
-  own too, without its × then, as the last tab can't close. Until 1.6.2 a tab on its own was hidden,
-  so opening a second workspace made two tabs appear at once, and closing back to one hid the one
-  left. Each tab is its own `WebContentsView`, and only the one shown is visible. The others
+  end, clear of macOS's three buttons. Signed in, you are always in a workspace, so its tab shows
+  wherever the bar does, on its own too, without its × then, as the last tab can't close
+  (`shownTabs` in `src/title-strip-layout.js`). Until 1.6.2 a tab on its own was hidden, so opening a
+  second workspace made two tabs appear at once, and closing back to one hid the one left.
+  - A tab on its own isn't drawn until it stands for a workspace you are in: not on a new copy's
+    sign-in page (it would read "Workspace 1"), not while signed out, and not with tabs turned off,
+    when its name would stop following its workspace. In full screen with one tab there is no bar,
+    and Rename does nothing there.
+  - It takes room at the bar's left end that + alone didn't, at least 52px, so in windows just
+    over 1024px wide one row gives way to the strip a little sooner than before. Each tab is its own `WebContentsView`, and only the one shown is visible. The others
   keep running, so a call or a draft carries on in the background. The window opens with the
   saved tabs, their names and the one that was shown (`workspace-tabs.json` in the app's data).
 - **All tabs share one sign-in, and each keeps its own workspace.** Every tab uses the profile

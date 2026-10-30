@@ -98,7 +98,9 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
     from its right-click menu leaving the keyboard in the name field), dragging it to a new place,
     and its right-click menu.
   - a single workspace's tab showing on its own, without ×, and renaming it; opening a second from +
-    adding one tab beside it, and closing the original leaving the new one shown on its own.
+    adding one tab beside it, and closing the original leaving the new one shown on its own; no tab
+    on a new copy's sign-in page or after signing out; Window ▸ Rename Workspace Tab… doing nothing
+    in full screen with one tab; one row with one tab in a window 1024 to 1100px wide.
   - XUNA's logo leading the bar in one row and in the strip, in both themes, never a workspace's
     own, with XUNA's header showing no second logo, and a click on it going home.
   - To see the drag areas Electron hit-tests, run `ELECTRON_DEBUG_DRAGGABLE_REGIONS=1 npm start`
@@ -144,8 +146,8 @@ None of these is visible to users today.
   - Under a dialog's backdrop a faint seam can show where the bar's left end meets XUNA's header.
   - For a frame or two after the bar changes from the strip to one row, the strip's old drag area
     can still drag the window from XUNA's header controls under it, until the strip redraws.
-  - In a narrow window with many tabs, the strip runs out of room for them: below about 480px with
-    two tabs, 680px with six or 830px with nine, the last tabs run under + and Ask AI, which take
+  - In a narrow window with many tabs, the strip runs out of room for them: below about 430px with
+    one tab, 480px with two, 680px with six or 830px with nine, the last tabs run under + and Ask AI, which take
     their clicks. XUNA's logo, added in 1.6.1, made that start about 100px sooner. Clipping the tab
     list would stop it.
   - XUNA's header keeps the 8px gap beside its hidden logo, which its measure of the room it needs
