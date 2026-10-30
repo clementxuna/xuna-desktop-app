@@ -1,7 +1,8 @@
 'use strict';
 
 // Installed copies check this repo's GitHub Releases at start-up, every half hour, when the computer
-// wakes and from Check for Updates… in the menu bar, and download an update in the background. Once it
+// wakes, when XUNA comes back to the front (unless they looked a few minutes before) and from Check for
+// Updates… in the menu bar, and download an update in the background. Once it
 // has downloaded, the app asks to restart for it, even in the middle of work. If XUNA isn't in front, a
 // notification says the update is ready, and clicking it, or coming back to XUNA, asks. After Later it
 // asks again a few hours on, while the app stays open; an update nobody restarts for installs when the
@@ -10,11 +11,13 @@
 // updater is electron-updater's autoUpdater; ui shows the questions, messages and notification (src/main.js
 // gives both). No Electron imports, so it is unit-tested in test/updates.test.js.
 
-// schedule(run, wait): when to ask again after Later (setTimeout; tests pass their own).
-function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter, schedule = setTimeout }) {
+// recheckAfter: how long after a look coming back to XUNA looks again. schedule(run, wait): when to ask
+// again after Later (setTimeout; tests pass their own).
+function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter, recheckAfter, schedule = setTimeout }) {
   let ready = null; // the version downloaded and waiting to install
   let asking = false; // the restart question is on screen
   let answers = 0; // how often it has been answered: a reminder is for the latest Later only
+  let lastCheck = -Infinity; // when the updater last looked
   const quitWord = platform === 'darwin' ? 'quit' : 'close'; // closing the window quits the app on Windows
 
   const restart = () => {
@@ -72,6 +75,7 @@ function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter
       return;
     }
     let result;
+    lastCheck = Date.now();
     try {
       result = await updater.checkForUpdates();
     } catch {
@@ -96,6 +100,10 @@ function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter
     start: () => {
       setInterval(check, checkEvery);
       ui.onWake(() => check()); // asleep, the computer missed its checks
+      // An update released while XUNA was in the background is asked about soon after you come back.
+      ui.onFocus(() => {
+        if (Date.now() - lastCheck >= recheckAfter) check();
+      });
       check();
     },
   };

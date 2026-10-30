@@ -43,6 +43,7 @@ function fakeUi({ inFront = true } = {}) {
     messages: [],
     notifications: [],
     focusListeners: [],
+    everyFocus: [],
     wakeListeners: [],
     quits: [],
     windowShown: 0,
@@ -54,6 +55,7 @@ function fakeUi({ inFront = true } = {}) {
     tell: (options) => ui.messages.push(options),
     notify: (options) => ui.notifications.push(options),
     onNextFocus: (callback) => ui.focusListeners.push(callback),
+    onFocus: (callback) => ui.everyFocus.push(callback),
     onWake: (callback) => ui.wakeListeners.push(callback),
     showWindow: () => {
       ui.windowShown += 1;
@@ -68,6 +70,7 @@ const RESTART = 0;
 const LATER = 1;
 
 const REMIND_AFTER = 4 * HOURS;
+const RECHECK_AFTER = 5 * 60 * 1000;
 
 // Reminders wait in a list until the test runs them.
 function setUp({ platform = 'win32', inFront = true, results = [] } = {}) {
@@ -75,7 +78,7 @@ function setUp({ platform = 'win32', inFront = true, results = [] } = {}) {
   const reminders = [];
   const schedule = (run, wait) => reminders.push({ run, wait });
   const ui = fakeUi({ inFront });
-  const updates = createUpdates({ updater, ui, version: '1.2.1', platform, checkEvery: HOURS / 2, remindAfter: REMIND_AFTER, schedule });
+  const updates = createUpdates({ updater, ui, version: '1.2.1', platform, checkEvery: HOURS / 2, remindAfter: REMIND_AFTER, recheckAfter: RECHECK_AFTER, schedule });
   return { updater, ui, updates, reminders };
 }
 
@@ -205,6 +208,22 @@ test('installed copies look for an update every half hour, so one released while
   const config = require('../src/config');
   assert.equal(config.UPDATE_CHECK_INTERVAL_MS, 30 * 60 * 1000);
   assert.equal(config.UPDATE_REMIND_AFTER_MS, 4 * HOURS);
+  assert.equal(config.UPDATE_RECHECK_AFTER_MS, RECHECK_AFTER);
+});
+
+test('coming back to XUNA looks for an update, unless it looked in the last five minutes', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const { updater, ui, updates } = setUp();
+  const comeBack = () => ui.everyFocus.forEach((callback) => callback());
+  updates.start(); // a look at start-up
+  t.mock.timers.tick(RECHECK_AFTER - 1);
+  comeBack();
+  assert.equal(updater.checks, 1);
+  t.mock.timers.tick(1);
+  comeBack();
+  assert.equal(updater.checks, 2);
+  comeBack(); // straight after that look
+  assert.equal(updater.checks, 2);
 });
 
 test('checks run at start-up and every half hour, and carry on once an update is ready, so a newer one can replace it', (t) => {

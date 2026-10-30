@@ -863,9 +863,11 @@ function startAutoUpdates() {
     platform: process.platform,
     checkEvery: config.UPDATE_CHECK_INTERVAL_MS,
     remindAfter: config.UPDATE_REMIND_AFTER_MS,
+    recheckAfter: config.UPDATE_RECHECK_AFTER_MS,
     ui: {
       inFront: () => BrowserWindow.getFocusedWindow() !== null,
       onNextFocus: (callback) => app.once('browser-window-focus', () => callback()),
+      onFocus: (callback) => app.on('browser-window-focus', () => callback()),
       onWake: (callback) => powerMonitor.on('resume', () => callback()),
       ask: (options) => showMessage({ type: 'info', defaultId: 0, cancelId: 1, noLink: true, ...options }).then(({ response }) => response),
       tell: (options) => showMessage({ type: 'info', ...options }),
