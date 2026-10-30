@@ -332,7 +332,7 @@ function addWorkspaceTabs(win, webPreferences) {
   strip.setBackgroundColor('#00000000'); // the window's colour shows through until the strip is told the bar's
   win.contentView.addChildView(strip);
   const stripPage = strip.webContents;
-  let stripUrl = null; // the strip page's address once it has loaded: only that page is heard (see isFromOwnPage)
+  let stripUrl = null; // the strip page's address once it has started: only that page is heard (see isFromOwnPage)
   reloadOnCrash(stripPage);
 
   const pageOf = (id) => {
@@ -694,10 +694,12 @@ function addWorkspaceTabs(win, webPreferences) {
     sendToStrip();
   });
   win.on('page-title-updated', (event) => event.preventDefault());
-  stripPage.on('did-finish-load', () => {
+  // The strip's page is known by its address as soon as it starts, before its scripts run: it can
+  // measure and take clicks long before it finishes loading, which waits for XUNA's font.
+  stripPage.on('did-navigate', () => {
     stripUrl ??= stripPage.getURL();
-    sendToStrip();
   });
+  stripPage.on('did-finish-load', sendToStrip);
   win.once('closed', () => {
     if (!stripPage.isDestroyed()) stripPage.close(); // on Mac the app stays open after its window closes
   });

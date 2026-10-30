@@ -95,9 +95,9 @@ function chromeUserAgent(chromeVersion, platform) {
   return `Mozilla/5.0 (${system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
 }
 
-// Whether a message to the main process comes from one of the app's own small pages (the Mac title strip,
-// the + panel): from its main frame, while it still shows url, the address it was given as it loaded,
-// and not from a page that has since taken its place, which would have the same preload.
+// Whether a message to the main process comes from the app's own page in a view, the Mac title strip: from
+// its main frame, while it still shows url, the address it started at, and not from a page that has since
+// taken its place, which would have the same preload.
 function isFromOwnPage(frame, url) {
   return Boolean(frame && url) && !frame.parent && frame.url === url;
 }

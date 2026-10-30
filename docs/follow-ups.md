@@ -142,6 +142,10 @@ None of these is visible to users today.
     can still drag the window from XUNA's header controls under it, until the strip redraws.
   - With one tab, + sits 4 pixels nearer XUNA's logo than designed: the empty tab list still takes
     a gap.
+  - A strip whose page crashes twice within 10 seconds stays gone until the window reopens; View ▸
+    Reload reloads XUNA's page, not the strip's.
+  - If the + panel's page crashes while it is open, or the strip's while a tab is being renamed,
+    the keyboard isn't handed back to XUNA until you click it.
   - The header watcher looks at the page after any change of an attribute, at most five times a
     second, which could be narrowed to the attributes that matter.
 - **Workspace tabs (Mac):**

@@ -1,9 +1,9 @@
 'use strict';
 
 // Installed copies check this repo's GitHub Releases at start-up, every half hour, when the computer
-// wakes, when XUNA comes back to the front (unless they looked a few minutes before) and from Check for
-// Updates… in the menu bar, and download an update in the background. Once it
-// has downloaded, the app asks to restart for it, even in the middle of work. If XUNA isn't in front, a
+// wakes, when XUNA comes back to the front (unless they looked a few minutes before) and from Check
+// for Updates… in the menu bar, and download an update in the background. Once it has downloaded,
+// the app asks to restart for it, even in the middle of work. If XUNA isn't in front, a
 // notification says the update is ready, and clicking it, or coming back to XUNA, asks. After Later it
 // asks again a few hours on, while the app stays open; an update nobody restarts for installs when the
 // app quits. The checks carry on meanwhile, so a newer release replaces the update waiting.

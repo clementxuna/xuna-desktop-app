@@ -70,7 +70,7 @@ reason for it.
   - Sign-in and connect pop-ups keep macOS's standard title bar.
   - The strip's page loads again if it crashes, as XUNA's pages do (`src/reload-on-crash.js`), and
     a + panel whose page crashed closes and is made afresh at the next +. The main process hears
-    the strip only from its own page, at the address it loaded at (`isFromOwnPage` in
+    the strip only from its own page, at the address it started at (`isFromOwnPage` in
     `src/policy.js`), since its calls close, rename and move tabs. The + panel's calls aren't
     checked that way: they were kept to what any page in its place could safely make (see
     `src/workspace-picker-panel-preload.js`). A link dropped on either loads nothing, because

@@ -203,7 +203,7 @@ describe('isFromOwnPage', () => {
     assert.equal(isFromOwnPage({ url: STRIP, parent: { url: 'https://example.com/' } }, STRIP), false);
   });
 
-  test('ignores a message whose frame has gone, or that comes before the page has loaded', () => {
+  test('ignores a message whose frame has gone, or that comes before the page has started', () => {
     assert.equal(isFromOwnPage(null, STRIP), false);
     assert.equal(isFromOwnPage({ url: STRIP, parent: null }, null), false);
   });
