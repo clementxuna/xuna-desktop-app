@@ -142,14 +142,8 @@ None of these is visible to users today.
     can still drag the window from XUNA's header controls under it, until the strip redraws.
   - With one tab, + sits 4 pixels nearer XUNA's logo than designed: the empty tab list still takes
     a gap.
-  - The strip's page doesn't check which page sent a request, and a link dropped on the bar could
-    load in its view, which would then have the strip's link to the main process.
   - The header watcher looks at the page after any change of an attribute, at most five times a
     second, which could be narrowed to the attributes that matter.
-  - If the strip's page crashes it isn't reloaded, and the bar is gone until the window reopens.
 - **Workspace tabs (Mac):**
-  - A tab isn't named after its workspace automatically, because XUNA's page title is always
-    "XUNA AI". Tabs are named "Workspace N" until renamed. The web app could set
-    `document.title` to the workspace's name, and the strip could then use it.
   - Clicking a notification from a tab in the background doesn't bring that tab to the front.
   - Tab buttons are reached by mouse and shortcuts only. Tab doesn't move focus into the strip.

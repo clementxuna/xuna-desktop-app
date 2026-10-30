@@ -68,6 +68,13 @@ reason for it.
     runs, and a quit that a page held up finishes once they have closed. Back, Forward, Reload
     and Developer Tools act on the XUNA page shown, not the strip.
   - Sign-in and connect pop-ups keep macOS's standard title bar.
+  - The strip's page loads again if it crashes, as XUNA's pages do (`src/reload-on-crash.js`), and
+    a + panel whose page crashed closes and is made afresh at the next +. The main process hears
+    the strip only from its own page, at the address it loaded at (`isFromOwnPage` in
+    `src/policy.js`), since its calls close, rename and move tabs. The + panel's calls aren't
+    checked that way: they were kept to what any page in its place could safely make (see
+    `src/workspace-picker-panel-preload.js`). A link dropped on either loads nothing, because
+    Electron doesn't navigate on a drop (`navigateOnDragDrop` is off by default).
 - **One row: XUNA's header is the title bar.** A strip stacked above XUNA's own 56-pixel header
   made two bars, with search and Ask AI twice, where Mac apps such as Slack, Linear and Notion
   put the window's buttons in their own top bar. So where the tab in front shows XUNA's header,
@@ -294,8 +301,10 @@ reason for it.
   asks. Check for Updates… sits where each platform puts it: under About in the Mac app menu, and
   in Help on Windows, since the app has no settings menu.
 - **An update is offered within the half hour, mid-work included.** The app checks every 30
-  minutes and when the computer wakes, and asks as soon as an update has downloaded, whatever
-  the user is doing. After Later it asks again 4 hours on while the app stays open
+  minutes, when the computer wakes, and when XUNA comes back to the front unless it looked in
+  the last five minutes (`UPDATE_RECHECK_AFTER_MS`), so an update released while XUNA was in the
+  background turns up soon after you return. It asks as soon as an update has downloaded,
+  whatever the user is doing. After Later it asks again 4 hours on while the app stays open
   (`UPDATE_REMIND_AFTER_MS`). The checks carry on with an update waiting, so a newer release
   replaces it, but only look: on Mac, downloading the same update again hands the whole app to
   Squirrel again, so only a newer version is downloaded.
