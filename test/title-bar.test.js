@@ -16,6 +16,7 @@ const {
   PICKER_PANEL_WIDTH,
   pickerPanelBounds,
   askAiState,
+  rememberedBar,
 } = require('../src/title-bar');
 const { BACKGROUND } = require('../src/config');
 
@@ -174,6 +175,25 @@ test("the strip's measure of its tabs is taken only when it makes sense", () => 
   assert.equal(clusterReport('400'), null);
 });
 
+test('the bar as the window last closed with it is kept, without whatever covered XUNA then, and read back only where plausible', () => {
+  const kept = rememberedBar({ header: xunaHeader({ cover: { filter: 'blur(16px)', tint: 'rgba(0, 0, 0, 0.1)' } }), cluster: { natural: 317, minimum: 258 }, dark: true });
+  assert.deepEqual(kept, { header: xunaHeader(), cluster: { natural: 317, minimum: 258 }, dark: true });
+  assert.deepEqual(rememberedBar(JSON.parse(JSON.stringify(kept))), kept); // through the file and back
+  assert.deepEqual(rememberedBar({ header: null, cluster: null, dark: false }), { header: null, cluster: null, dark: false });
+  // A first run, or a file that isn't the bar's
+  assert.deepEqual(rememberedBar(null), { header: null, cluster: null, dark: null });
+  assert.deepEqual(rememberedBar({ header: xunaHeader({ height: 500 }), cluster: '400', dark: 'yes' }), { header: null, cluster: null, dark: null });
+});
+
+test('a window opening with the bar remembered from one row opens in one row, the three buttons already in their place', () => {
+  const { header, cluster } = rememberedBar({ header: xunaHeader(), cluster: { natural: 317, minimum: 258 }, dark: false });
+  const layout = macWindowLayout({ width: 1280, height: 820, fullScreen: false, header, cluster });
+  assert.equal(layout.mode, 'one-row');
+  assert.deepEqual(layout.trafficLights, { x: 20, y: 20 });
+  // Nothing remembered: the strip, as on a first run, at the sign-in page.
+  assert.equal(macWindowLayout({ width: 1280, height: 820, fullScreen: false, ...rememberedBar(null) }).mode, 'strip');
+});
+
 const stripHtml = () => fs.readFileSync(path.join(__dirname, '..', 'src', 'title-strip.html'), 'utf8');
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const cssRule = (html, selector) => html.match(new RegExp(`(?:^|\\s)${escapeRegExp(selector)}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
@@ -207,10 +227,46 @@ test("in one row the strip's controls sit at its left, against XUNA's header, an
   assert.match(cssRule(stripHtml(), ':root[data-mode="one-row"] .ask-ai'), /display:\s*none/);
 });
 
-test("with the window in the background the strip's controls fade, as macOS's own toolbars do", () => {
-  assert.match(cssRule(stripHtml(), ':root[data-inactive] .strip > *'), /opacity:\s*0\.5/);
-  // At once, as XUNA's header fades beside them in one row (src/one-row.css), so the two stay in step.
-  assert.doesNotMatch(cssRule(stripHtml(), '.strip > *'), /transition/);
+test("the bar stays as it is with the window in the background: nothing in it fades, XUNA's Ask AI orb among it", () => {
+  assert.doesNotMatch(stripHtml(), /data-inactive/);
+  assert.ok(!oneRowRules().some(([selectors]) => selectors.some((selector) => selector.includes('inactive'))));
+});
+
+test("until the main process has said what to draw, the strip shows nothing, rather than a bar it would redraw at once", () => {
+  assert.match(cssRule(stripHtml(), ':root:not([data-ready]) .strip'), /visibility:\s*hidden/);
+});
+
+test("XUNA's logo in the bar has its width before its image has loaded, so the bar's measure doesn't change when it arrives", () => {
+  const img = stripHtml().match(/<img src="xuna-logo\.png"[^>]*>/)?.[0] ?? '';
+  assert.match(img, /width="512"/); // src/xuna-logo.png is 512 × 122
+  assert.match(img, /height="122"/);
+  assert.match(cssRule(stripHtml(), '.home img'), /height:\s*20px/);
+});
+
+// XUNA's header orb is AskAiOrb: an 18px SiriOrb, at rest ("idle"), turning every 6 seconds (see the web app's
+// ask-ai-orb.tsx, siri-orb/index.tsx and ai-core). Its values at that size: the mesh's --angle runs to 720deg
+// over two turns' time, where every layer (x1, x2, x-2, x-3, x1.5) is back where it began; blur 1px,
+// contrast 1.1, dots 0.072px, rim 1.5px; at rest the sphere is at 0.94 of its size and 0.75 of its
+// saturation, its glow at 0.15 x 0.7 opacity, blurred 0.28 of its size; the whole breathes to 1.035 every 5.5s.
+test("the strip's Ask AI orb is XUNA's, as XUNA's header draws it: the same size, colours, pace and layers", () => {
+  const html = stripHtml();
+  assert.match(cssRule(html, '.orb'), /width:\s*18px;[^}]*height:\s*18px/);
+  assert.match(html, /@keyframes orb-turn\s*\{\s*to\s*\{\s*--angle:\s*720deg;?\s*\}\s*\}/);
+  assert.match(cssRule(html, '.orb-sphere::before'), /animation:\s*orb-turn 12s linear infinite/);
+  assert.match(cssRule(html, '.orb-sphere::before'), /filter:\s*blur\(1px\) contrast\(1\.1\) saturate\(1\.4\)/);
+  assert.match(cssRule(html, '.orb-sphere'), /filter:\s*saturate\(0\.75\)/);
+  assert.match(cssRule(html, '.orb-sphere'), /transform:\s*scale\(0\.94\)/);
+  assert.match(cssRule(html, '.orb-sphere::after'), /backdrop-filter:\s*blur\(2px\) contrast\(2\.2\)/);
+  assert.match(cssRule(html, '.orb-sphere::after'), /mix-blend-mode:\s*overlay/);
+  assert.match(cssRule(html, '.orb-glow'), /opacity:\s*0\.105/);
+  assert.match(cssRule(html, '.orb-glow'), /filter:\s*blur\(5\.04px\)/);
+  assert.match(cssRule(html, '.orb-sheen'), /animation:\s*orb-drift 12s ease-in-out infinite alternate/);
+  assert.match(cssRule(html, '.orb'), /animation:\s*orb-breathe 5\.5s cubic-bezier\(0\.645, 0\.045, 0\.355, 1\) infinite/);
+});
+
+test("while there is no XUNA Ask AI to press yet, the strip's dims its label, never its orb", () => {
+  assert.doesNotMatch(cssRule(stripHtml(), '.ask-ai:disabled'), /opacity/);
+  assert.match(cssRule(stripHtml(), '.ask-ai:disabled .label'), /opacity:\s*0\.5/);
 });
 
 test("while XUNA's page is covered the strip's bottom line goes too, as the cover blurs XUNA's own away", () => {
@@ -280,10 +336,6 @@ test("everything that takes clicks in or over XUNA's header stays clickable: its
   ]) {
     assert.ok(noDrag.includes(selector), selector);
   }
-});
-
-test("with the window in the background XUNA's header fades, as the strip's controls do", () => {
-  assert.match(oneRowRule(':root[data-xuna-desktop-row][data-xuna-desktop-inactive] [data-xuna-desktop-bar] > *'), /opacity:\s*0\.5/);
 });
 
 test("the workspace panel opens below the + button, its right edge in line with the button's, as wide as XUNA's", () => {

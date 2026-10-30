@@ -78,6 +78,20 @@ function clusterReport(widths) {
   return within(minimum, 1, 5000) && within(natural, minimum, 5000) ? { natural, minimum } : null;
 }
 
+// The bar as a window last closed with it, which the next window opens with, so the bar is drawn once, in
+// its place, instead of as the strip first and in one row once XUNA has drawn its header (see
+// addWorkspaceTabs in src/main.js): XUNA's header in the tab in front, without whatever covered it then;
+// the strip's measure; and whether XUNA was dark. Read from a file, it is taken only where plausible, as
+// from a page.
+function rememberedBar(saved) {
+  const header = headerReport(saved?.header);
+  return {
+    header: header && { ...header, cover: null },
+    cluster: clusterReport(saved?.cluster),
+    dark: typeof saved?.dark === 'boolean' ? saved.dark : null,
+  };
+}
+
 // Where everything goes in a Mac window with this content size. header: the tab in front's XUNA header
 // (headerReport), or null; cluster: the strip's measure (clusterReport), or null until it has measured
 // itself; zoom: the page's zoom, as the main process knows it (the page's own report of its width lags
@@ -153,6 +167,7 @@ module.exports = {
   macWindowLayout,
   headerReport,
   clusterReport,
+  rememberedBar,
   PICKER_PANEL_WIDTH,
   pickerPanelBounds,
   askAiState,

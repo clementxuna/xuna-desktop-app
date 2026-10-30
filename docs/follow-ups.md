@@ -80,8 +80,9 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
   - the + panel beside XUNA's own picker, in both themes: the type, colours, logos and shadow,
     searching, the arrow keys, Escape, clicking away (including onto another tab), ⌘T, a long
     list that scrolls, and full screen;
-  - in the strip, Ask AI opening and closing XUNA's assistant in the tab in front, dimmed on the
-    sign-in page, and its orb beside XUNA's own (in a white-labelled workspace too).
+  - in the strip, Ask AI opening and closing XUNA's assistant in the tab in front, its label dimmed
+    on the sign-in page and its orb not, and its orb beside XUNA's own, turning at the same pace (in
+    a white-labelled workspace too).
 - **Try the one-row title bar on a Mac.** It was tried end to end in a Windows development run
   (`XUNA_WORKSPACE_TABS=1`) against a stand-in for XUNA's header, where Windows' own frame
   ignores drag areas, so the dragging itself hasn't been tried. On a Mac, check:
@@ -92,8 +93,11 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
     40px strip, moving between the two as you sign in and out;
   - one row with one tab and with several, in both themes; a narrow window falling back to the
     strip and back; ⌘+ and ⌘− keeping the bar in line; full screen;
-  - a XUNA dialog blurring the bar's left end with the page, and the bar fading while the window
-    is in the background;
+  - a XUNA dialog blurring the bar's left end with the page, and nothing in the bar fading while
+    the window is in the background, XUNA's Ask AI orb keeping its colour;
+  - opening the app, and opening a workspace from +: the bar drawn once, in its place, the three
+    buttons already in their one-row place, and nothing moving while XUNA loads; after signing out
+    and quitting, the next window opening with the strip;
   - Back and Forward; clicking a tab to show it, double-clicking it to rename it (and Rename Tab…
     from its right-click menu leaving the keyboard in the name field), dragging it to a new place,
     and its right-click menu.

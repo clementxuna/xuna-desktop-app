@@ -8,7 +8,7 @@ const { createPolicy, isSafeExternalUrl, chromeUserAgent, isFromOwnPage } = requ
 const { buildAppMenu, attachContextMenu, tabMenuTemplate } = require('./menus');
 const { createUpdates } = require('./updates');
 const { reloadOnCrash } = require('./reload-on-crash');
-const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macWindowLayout, headerReport, clusterReport, askAiState } = require('./title-bar');
+const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macWindowLayout, headerReport, clusterReport, rememberedBar, askAiState } = require('./title-bar');
 const { shownTabs } = require('./title-strip-layout');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, moveTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
@@ -251,6 +251,11 @@ function createMainWindow() {
   const stateFile = path.join(app.getPath('userData'), 'window-state.json');
   const workAreas = screen.getAllDisplays().map((display) => display.workArea);
   const { bounds, maximized } = chooseBounds(readState(stateFile), workAreas, { width: 1280, height: 820 });
+  // With workspace tabs the window opens with the bar as the last one closed with it (rememberedBar in
+  // src/title-bar.js): in XUNA's black or white, and in one row if it was, the three buttons already there.
+  const bar = USE_TABS ? rememberedBar(readState(titleBarFile())) : null;
+  if (typeof bar?.dark === 'boolean') titleBar = bar.dark ? config.BACKGROUND.dark : config.BACKGROUND.light;
+  const lights = bar ? macWindowLayout({ width: bounds.width, height: bounds.height, fullScreen: false, header: bar.header, cluster: bar.cluster }).trafficLights : MAC_TRAFFIC_LIGHTS;
 
   const win = new BrowserWindow({
     ...bounds,
@@ -259,12 +264,12 @@ function createMainWindow() {
     title: 'XUNA AI',
     backgroundColor: (USE_TABS && titleBar) || backgroundColor(),
     ...titleBarOptions(),
-    ...(IS_MAC ? { titleBarStyle: 'hidden', trafficLightPosition: MAC_TRAFFIC_LIGHTS } : {}),
+    ...(IS_MAC ? { titleBarStyle: 'hidden', trafficLightPosition: lights } : {}),
     autoHideMenuBar: true,
     // With workspace tabs the title strip and the XUNA pages are views over the window's own page.
     webPreferences: USE_TABS ? WINDOW_PAGE_PREFERENCES : XUNA_PAGE_PREFERENCES,
   });
-  if (USE_TABS) addWorkspaceTabs(win, XUNA_PAGE_PREFERENCES);
+  if (USE_TABS) addWorkspaceTabs(win, XUNA_PAGE_PREFERENCES, bar);
   else showXuna(win.webContents);
   if (maximized) win.maximize();
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
@@ -287,6 +292,11 @@ function createMainWindow() {
   });
 
   return win;
+}
+
+// Where a window with workspace tabs keeps the bar as it closed with it (rememberedBar in src/title-bar.js).
+function titleBarFile() {
+  return path.join(app.getPath('userData'), 'title-bar.json');
 }
 
 // Opens XUNA in a page. A page that can't load shows the offline page, and one that crashes reloads.
@@ -313,18 +323,26 @@ function showXuna(contents) {
 // running, so a call or a draft carries on while another workspace is in front. The tabs, their names,
 // their workspaces and the one shown are saved, and the window opens with them again. The + button opens
 // a menu of the account's workspaces (src/workspace-picker.js).
-function addWorkspaceTabs(win, webPreferences) {
+//
+// The window opens with the bar as the last one closed with it (remembered: rememberedBar in
+// src/title-bar.js), so the bar is drawn once, in its place, rather than as the strip first and in one row
+// once XUNA has drawn its header. A tab whose page hasn't shown XUNA's header yet, as while XUNA loads,
+// expects the header last seen, and the bar lets the page show through meanwhile.
+function addWorkspaceTabs(win, webPreferences, remembered) {
   const stateFile = path.join(app.getPath('userData'), 'workspace-tabs.json');
   let state = readTabs(readState(stateFile));
   const views = new Map(); // tab id → { view, page }; the page is held, since view.webContents is undefined once it is destroyed
   const closingTabs = new Set(); // tabs being closed, whose page is deciding whether it may go
   const askAi = new Map(); // tab id → what its page says about XUNA's Ask AI (askAiState in src/title-bar.js)
   let closingWindow = false; // the window is closing its pages, one at a time
-  const headers = new Map(); // tab id → XUNA's header, as its page reports it (headerReport in src/title-bar.js)
-  let cluster = null; // the room the bar's left end needs in one row, as the strip measures it (clusterReport)
+  const headers = new Map(); // tab id → XUNA's header, as its page reports it (headerReport in src/title-bar.js), or null for none
+  let lastHeader = remembered?.header ?? null; // XUNA's header as last seen in any tab, or as the window opened with it
+  const shown = new Set(); // tabs whose page has shown XUNA's header since it last loaded
+  let cluster = remembered?.cluster ?? null; // the room the bar's left end needs in one row, as the strip measures it (clusterReport)
   let bar = null; // where everything goes (macWindowLayout in src/title-bar.js)
-  let lightsAt = MAC_TRAFFIC_LIGHTS; // where the three buttons are
+  let lightsAt = (IS_MAC && win.getWindowButtonPosition?.()) || MAC_TRAFFIC_LIGHTS; // where the three buttons are
   const rowsSent = new WeakMap(); // XUNA page → what it was last told about the room in its header (see sendRows)
+  const headerOf = (id) => (headers.has(id) ? headers.get(id) : lastHeader);
 
   // The title strip, in a view kept above the tabs' pages. Its page talks only to this window's tabs, and
   // loads again if it crashes.
@@ -351,7 +369,7 @@ function addWorkspaceTabs(win, webPreferences) {
     const [width, height] = win.getContentSize();
     const before = bar;
     const zoom = pageOf(state.active)?.getZoomFactor() ?? 1;
-    bar = macWindowLayout({ width, height, fullScreen: win.isFullScreen(), tabCount: state.tabs.length, header: headers.get(state.active) ?? null, cluster, zoom });
+    bar = macWindowLayout({ width, height, fullScreen: win.isFullScreen(), tabCount: state.tabs.length, header: headerOf(state.active), cluster, zoom });
     for (const { view } of views.values()) view.setBounds(bar.page);
     if (bar.strip) strip.setBounds(bar.strip);
     strip.setVisible(Boolean(bar.strip));
@@ -364,12 +382,11 @@ function addWorkspaceTabs(win, webPreferences) {
     return before?.mode !== bar.mode || before?.barHeight !== bar.barHeight;
   };
 
-  // Each tab's page applies the room made in XUNA's header for the strip, and the fade while the window
-  // is in the background (see watchHeader in src/preload.js). Wherever the strip shows, it shows XUNA's
-  // logo, and XUNA's header hides its own (src/one-row.css). A page hears again only when that changes,
-  // or once it has loaded afresh.
+  // Each tab's page applies the room made in XUNA's header for the strip (see watchHeader in
+  // src/preload.js). Wherever the strip shows, it shows XUNA's logo, and XUNA's header hides its own
+  // (src/one-row.css). A page hears again only when that changes, or once it has loaded afresh.
   const sendRows = () => {
-    const row = bar?.mode === 'one-row' ? { inset: bar.inset, inactive: !win.isFocused() } : null;
+    const row = bar?.mode === 'one-row' ? { inset: bar.inset } : null;
     const message = { ...row, logo: Boolean(bar?.strip) };
     const word = JSON.stringify(message);
     for (const { page } of views.values()) {
@@ -380,36 +397,41 @@ function addWorkspaceTabs(win, webPreferences) {
   };
 
   // The tabs as the strip draws them (shownTabs in src/title-strip-layout.js). known: the tab stands for a
-  // workspace you are in, by its name or its workspace's; not before sign-in, signed out, or with tabs
-  // turned off, when a tab on its own isn't drawn.
-  const stripTabs = () =>
-    state.tabs.map((tab) => ({
+  // workspace you are in, by its name or its workspace's, as you are signed in: XUNA has listed your
+  // workspaces, or, until it has this run, shows its header (or is expected to, as the window opens). Not
+  // on a new copy's sign-in page, signed out, or with tabs turned off, when a tab on its own isn't drawn.
+  const stripTabs = () => {
+    const signedIn = Array.isArray(workspaceList) || (workspaceList === undefined && headerOf(state.active) !== null);
+    return state.tabs.map((tab) => ({
       id: tab.id,
       label: labelFor(tab),
       active: tab.id === state.active,
-      known: !tabsTurnedOff && workspaceList !== null && Boolean(tab.name || tab.workspaceName),
+      known: !tabsTurnedOff && signedIn && Boolean(tab.name || tab.workspaceName),
     }));
+  };
 
   const sendToStrip = () => {
     if (stripPage.isDestroyed()) return;
     const page = pageOf(state.active);
-    const header = headers.get(state.active);
+    const header = headerOf(state.active);
     const oneRow = bar?.mode === 'one-row';
+    // In one row the bar is XUNA's header: it takes the header's colours, and looks covered when the page
+    // is. Until the page has shown its header since it loaded, as while XUNA's loader shows, the bar lets
+    // the page show through instead, so its left end doesn't stand out as a box of its own.
+    const drawn = oneRow && shown.has(state.active);
     stripPage.send('xuna:workspace-tabs', {
       tabs: stripTabs(),
       dark: titleBar === config.BACKGROUND.dark,
       askAi: askAiState(askAi.get(state.active)),
-      // In one row the bar is XUNA's header: it takes the header's colours, and looks covered when the page is.
       bar: {
         mode: oneRow ? 'one-row' : 'strip',
         height: bar?.barHeight ?? MAC_TITLE_STRIP_HEIGHT,
-        background: (oneRow && header?.background) || titleBar || backgroundColor(),
-        border: (oneRow && header?.border) || null,
+        background: oneRow ? (drawn && (header?.background || titleBar)) || null : titleBar || backgroundColor(),
+        border: (drawn && header?.border) || null,
         lights: IS_MAC,
-        cover: (oneRow && header?.cover) || null,
+        cover: (drawn && header?.cover) || null,
       },
       history: { back: Boolean(page?.navigationHistory.canGoBack()), forward: Boolean(page?.navigationHistory.canGoForward()) },
-      focused: win.isFocused(),
     });
   };
 
@@ -456,7 +478,7 @@ function addWorkspaceTabs(win, webPreferences) {
   const openPage = (id) => {
     const view = new WebContentsView({ webPreferences });
     const page = view.webContents;
-    view.setBackgroundColor(backgroundColor());
+    view.setBackgroundColor(titleBar || backgroundColor()); // XUNA's black or white, until XUNA draws
     view.setVisible(false);
     win.contentView.addChildView(view);
     win.contentView.addChildView(strip); // again, which keeps the strip above every tab's page
@@ -467,14 +489,16 @@ function addWorkspaceTabs(win, webPreferences) {
       rowsSent.delete(page);
       sendRows();
     });
-    // Back and Forward follow the page in front. A page outside XUNA's app, such as the offline page or
-    // a payment provider's, has no XUNA header to be the bar, and says nothing about one.
+    // Back and Forward follow the page in front. A new page draws XUNA's header afresh. A page outside
+    // XUNA's app, such as the offline page or a payment provider's, has no XUNA header to be the bar, and
+    // says nothing about one.
     const onNavigated = () => {
       if (pageOf(state.active) === page) sendToStrip();
     };
     page.on('did-navigate', (_event, url) => {
+      shown.delete(id);
       if (!policy.isAppPage(url)) {
-        headers.delete(id);
+        headers.set(id, null);
         if (pageOf(state.active) === page) arrange();
       }
       onNavigated();
@@ -494,6 +518,7 @@ function addWorkspaceTabs(win, webPreferences) {
     if (views.get(id)?.view === view) views.delete(id);
     askAi.delete(id);
     headers.delete(id);
+    shown.delete(id);
     if (win.isDestroyed()) return;
     win.contentView.removeChildView(view);
     if (closingTabs.delete(id)) {
@@ -606,7 +631,12 @@ function addWorkspaceTabs(win, webPreferences) {
     },
     // What a tab's page says about XUNA's header (see watchHeader in src/preload.js).
     setHeader: (id, report) => {
-      headers.set(id, headerReport(report));
+      const header = headerReport(report);
+      headers.set(id, header);
+      if (header) {
+        lastHeader = { ...header, cover: null };
+        shown.add(id);
+      } else shown.delete(id);
       if (id !== state.active) return;
       arrange();
       sendToStrip();
@@ -712,29 +742,25 @@ function addWorkspaceTabs(win, webPreferences) {
       panel.close();
     });
   }
-  // The bar fades while the window is in the background. Typing goes to XUNA, not the strip.
-  win.on('focus', () => {
-    pageOf(state.active)?.focus();
-    sendRows();
-    sendToStrip();
-  });
-  win.on('blur', () => {
-    sendRows();
-    sendToStrip();
-  });
+  // Typing goes to XUNA, not the strip.
+  win.on('focus', () => pageOf(state.active)?.focus());
   win.on('page-title-updated', (event) => event.preventDefault());
   // The strip's page is known by its address as soon as it starts, before its scripts run: it can
-  // measure and take clicks long before it finishes loading, which waits for XUNA's font.
+  // measure and take clicks long before it finishes loading, which waits for XUNA's font. It is told
+  // what to draw as soon as its script is listening, and shows nothing till then.
   stripPage.on('did-navigate', () => {
     stripUrl ??= stripPage.getURL();
   });
-  stripPage.on('did-finish-load', sendToStrip);
+  stripPage.on('dom-ready', sendToStrip);
   win.once('closed', () => {
     if (!stripPage.isDestroyed()) stripPage.close(); // on Mac the app stays open after its window closes
   });
+  // The next window opens with the bar as this one leaves it, kept as the window starts closing, while
+  // every page is still there.
   win.on('close', (event) => {
     if (![...views.keys()].some(pageOf)) return;
     event.preventDefault();
+    if (!closingWindow) writeState(titleBarFile(), rememberedBar({ header: headerOf(state.active), cluster, dark: titleBar === config.BACKGROUND.dark }));
     closingWindow = true;
     closeNextPage();
   });

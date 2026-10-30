@@ -40,47 +40,70 @@ function throttled(look) {
   };
 }
 
+// XUNA starts with its loader, which has no header, so until XUNA has settled a page without one isn't
+// news: the bar keeps the header it expects (see addWorkspaceTabs in src/main.js). XUNA has settled once
+// it shows its sign-in page, where it sends anyone not signed in, or SETTLE_MS after its page has loaded.
+const SIGN_IN_PAGE = /^\/login(?:\/|$)/;
+const SETTLE_MS = 10_000;
+
 // In one row the tab's XUNA page fills the window and XUNA's own header is its title bar (see
 // macWindowLayout in src/title-bar.js, and src/one-row.css). This finds the header and tells the main
 // process how tall it is and how much room its contents need, in CSS pixels; the page's width in them,
 // which gives its zoom; its colours; and how anything covering it looks. It applies the room the main
-// process makes at the header's start for the strip, and the fade while the window isn't in front.
+// process makes at the header's start for the strip.
 function watchHeader() {
   let header = null;
-  let row = null; // the main process's word: { inset, inactive } in one row, null otherwise
+  let row = null; // the main process's word: { inset } in one row, null otherwise
   let logo = false; // the bar shows XUNA's logo, so XUNA's header hides its own (src/one-row.css)
   let covered = false;
-  let loaded = false; // XUNA draws its header after the page starts, so until it has loaded no header isn't news
+  let loaded = false;
+  let settled = false; // SETTLE_MS since the page loaded
+  let shown = false; // the page has shown XUNA's header, so the header going is news at once
   let last = '';
+  const mark = (found) => {
+    if (found === header) return;
+    header?.removeAttribute('data-xuna-desktop-bar');
+    header = found;
+    header?.setAttribute('data-xuna-desktop-bar', '');
+  };
   const report = () => {
-    const found = findHeader(row?.inset ?? 0);
-    if (found !== header) {
-      header?.removeAttribute('data-xuna-desktop-bar');
-      header = found;
-      header?.setAttribute('data-xuna-desktop-bar', '');
-    }
+    mark(findHeader(row?.inset ?? 0));
     const state = header ? describeHeader(header) : null;
     covered = Boolean(state?.cover);
     applyRow(row, covered, logo); // each time, in case XUNA's own code took it away
-    if (!state && !loaded && !last) return;
+    if (state) shown = true;
+    else if (!shown && !(loaded && (settled || SIGN_IN_PAGE.test(window.location.pathname)))) return;
     const serialized = JSON.stringify(state);
     if (serialized === last) return;
     last = serialized;
     ipcRenderer.send('xuna:title-bar-header', state);
   };
   const soon = throttled(report);
+  // XUNA's header drawn, or its sign-in page shown, is news at once, in the task that drew it: the header
+  // is marked before it is painted, so in one row the room made for the strip is there from its first
+  // frame, and a bar waiting for either changes now rather than on the next look.
+  const changed = () => {
+    const drawn = !header?.isConnected && findHeader(row?.inset ?? 0);
+    const signIn = !shown && loaded && last !== 'null' && SIGN_IN_PAGE.test(window.location.pathname);
+    if (drawn || signIn) report();
+    else soon();
+  };
   window.addEventListener('DOMContentLoaded', () => {
-    new MutationObserver(soon).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+    new MutationObserver(changed).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
     report();
   });
   window.addEventListener('load', () => {
     loaded = true;
+    setTimeout(() => {
+      settled = true;
+      report();
+    }, SETTLE_MS);
     soon();
   });
   window.addEventListener('resize', soon);
   document.addEventListener('load', soon, true); // an image arriving, a workspace's logo with no bar say, changes the room the header needs
   ipcRenderer.on('xuna:title-bar-row', (_event, next) => {
-    row = next && Number.isFinite(next.inset) ? { inset: next.inset, inactive: next.inactive === true } : null;
+    row = next && Number.isFinite(next.inset) ? { inset: next.inset } : null;
     logo = next?.logo === true;
     applyRow(row, covered, logo);
     soon();
@@ -140,9 +163,9 @@ function coverOf(header, box) {
   return { filter: style.backdropFilter && style.backdropFilter !== 'none' ? style.backdropFilter : null, tint: style.backgroundColor };
 }
 
-// The main process's row, on <html>: the room made at the header's start, the fade, and whether something
-// covers the header (then it doesn't drag the window). Only what differs is written, since each write is
-// a change the page's observers see.
+// The main process's row, on <html>: the room made at the header's start, and whether something covers the
+// header (then it doesn't drag the window). Only what differs is written, since each write is a change the
+// page's observers see.
 function applyRow(row, covered, logo) {
   const root = document.documentElement;
   if (!root) return;
@@ -156,7 +179,6 @@ function applyRow(row, covered, logo) {
     if (row) root.style.setProperty('--xuna-desktop-row-inset', inset);
     else root.style.removeProperty('--xuna-desktop-row-inset');
   }
-  toggle('data-xuna-desktop-inactive', Boolean(row?.inactive));
   toggle('data-xuna-desktop-covered', covered);
 }
 

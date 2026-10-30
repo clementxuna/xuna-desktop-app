@@ -86,9 +86,9 @@
     :root[data-mode="one-row"] .history { margin-inline-end: 0; }
     :root[data-mode="one-row"] .ask-ai { display: none; }
 
-    /* The window isn't in front: the controls fade, as macOS's own toolbars do, at once, as XUNA's header
-       beside them does in one row (src/one-row.css). */
-    :root[data-inactive] .strip > * { opacity: 0.5; }
+    /* Until the main process has said what to draw, the strip shows nothing, so its first frame is the bar
+       as it is to be, not a bar it would redraw at once. */
+    :root:not([data-ready]) .strip { visibility: hidden; }
 
     /* Something covers XUNA's page, a dialog's blurred backdrop say: in one row the bar looks covered too
        (src/preload.js reports how the cover looks), losing its bottom line as XUNA's header loses its own
@@ -100,27 +100,33 @@
     /* The tabs at their full width, out of sight, for measuring the bar's left end in one row. */
     .measure { position: fixed; top: -200px; left: 0; display: flex; gap: 2px; width: max-content; visibility: hidden; pointer-events: none; font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
 
-    .ask-ai { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; margin-left: 4px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--button-edge); border-radius: 6px; background: var(--button-surface); color: var(--button-text); box-shadow: 0 1px 2px rgb(10 13 18 / 0.05); white-space: nowrap; transition: background-color 150ms ease, opacity 150ms ease; }
+    .ask-ai { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; margin-left: 4px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--button-edge); border-radius: 6px; background: var(--button-surface); color: var(--button-text); box-shadow: 0 1px 2px rgb(10 13 18 / 0.05); white-space: nowrap; transition: background-color 150ms ease; }
     .ask-ai:hover { background: var(--button-hover); }
-    .ask-ai:disabled { opacity: 0.5; }
+    /* Until the tab in front has XUNA's Ask AI to press, as while XUNA loads, its label waits, dimmed. The orb
+       stays as it is, there and everywhere: it never dims. */
+    .ask-ai .label { transition: opacity 150ms ease; }
+    .ask-ai:disabled .label { opacity: 0.5; }
 
-    /* XUNA's Ask AI orb (SiriOrb in the web app, as AskAiOrb draws it): a mesh of the workspace's orb
-       colours turning once every twelve seconds, a drifting sheen, a lit rim and a soft glow, breathing
-       slowly. The colours are XUNA's own until the tab's page says which its workspace uses. */
+    /* XUNA's Ask AI orb, as XUNA's header draws it (AskAiOrb in the web app: SiriOrb, 18px, at rest), with
+       SiriOrb's own values at that size: a mesh of the workspace's four orb colours turning once every six
+       seconds, a drifting sheen, a lit rim and a frosted face, in a faint glow, the whole breathing slowly.
+       The colours are XUNA's own until the tab's page says which its workspace uses. */
     @property --angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
-    .orb-wrap { position: relative; display: grid; flex: none; place-items: center; width: 16px; height: 16px; }
     .orb {
       --c1: #6232ff;
       --c2: #2849ff;
       --c3: color-mix(in oklab, #6232ff 62%, #2849ff);
       --c4: color-mix(in oklab, #2849ff 68%, white);
       --bg: oklch(92% 0.03 300);
-      position: relative; display: grid; width: 16px; height: 16px; overflow: hidden; border-radius: 50%; isolation: isolate;
-      animation: orb-breathe 5.5s ease-in-out infinite;
+      position: relative; flex: none; width: 18px; height: 18px;
+      animation: orb-breathe 5.5s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
     }
-    .orb > span { grid-area: 1 / 1; width: 100%; height: 100%; border-radius: 50%; }
-    .orb-glow { position: absolute; inset: -12%; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--glow, #2849ff) 0%, transparent 64%); filter: blur(4.5px); opacity: 0.35; }
-    .orb-mesh {
+    .orb-glow { position: absolute; inset: -12%; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--c2) 0%, transparent 64%); filter: blur(5.04px); opacity: 0.105; }
+    .orb-sphere { position: relative; display: grid; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; isolation: isolate; filter: saturate(0.75); transform: scale(0.94); }
+    .orb-sphere::before, .orb-sphere::after, .orb-sphere > span { content: ""; display: block; grid-area: 1 / 1; width: 100%; height: 100%; border-radius: 50%; }
+    /* --angle runs to 720deg over two turns' time, where every cone is back where it began, so the loop
+       never jumps. */
+    .orb-sphere::before {
       background:
         conic-gradient(from calc(var(--angle) * 2) at 25% 70%, var(--c3), transparent 20% 80%, var(--c3)),
         conic-gradient(from calc(var(--angle) * 2) at 45% 75%, var(--c2), transparent 30% 60%, var(--c2)),
@@ -133,18 +139,19 @@
       filter: blur(1px) contrast(1.1) saturate(1.4);
       animation: orb-turn 12s linear infinite;
     }
+    .orb-sphere::after { background-image: radial-gradient(circle at center, var(--bg) 0.072px, transparent 0.072px); background-size: 0.144px 0.144px; backdrop-filter: blur(2px) contrast(2.2); mix-blend-mode: overlay; }
     .orb-sheen { background: radial-gradient(circle at 30% 24%, hsl(0 0% 100% / 0.32), transparent 34%), radial-gradient(circle at 72% 80%, hsl(0 0% 100% / 0.07), transparent 48%); mix-blend-mode: screen; animation: orb-drift 12s ease-in-out infinite alternate; }
     .orb-rim { box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.16), inset 0 1.5px 3px hsl(0 0% 100% / 0.22), inset 0 -1.8px 3.6px hsl(0 0% 0% / 0.4); }
-    @keyframes orb-turn { to { --angle: 360deg; } }
+    @keyframes orb-turn { to { --angle: 720deg; } }
     @keyframes orb-drift { 0% { transform: translate(-6%, -4%) scale(1.05); } 100% { transform: translate(7%, 6%) scale(1.12); } }
     @keyframes orb-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
-    @media (prefers-reduced-motion: reduce) { .orb, .orb > span { animation: none; } .tab { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .orb, .orb-sphere::before, .orb-sheen { animation: none; } .tab { transition: none; } }
   </style>
 </head>
 <body>
   <div class="strip">
     <button class="home" type="button" aria-label="Go to home" title="Home">
-      <img src="xuna-logo.png" alt="XUNA" draggable="false">
+      <img src="xuna-logo.png" width="512" height="122" alt="XUNA" draggable="false">
     </button>
     <div class="history">
       <button class="back" type="button" aria-label="Back" disabled>
@@ -159,8 +166,8 @@
       <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     </button>
     <button class="ask-ai" type="button" aria-label="Ask AI" aria-pressed="false" disabled>
-      <span class="orb-wrap" aria-hidden="true"><span class="orb-glow"></span><span class="orb"><span class="orb-mesh"></span><span class="orb-sheen"></span><span class="orb-rim"></span></span></span>
-      <span>Ask AI</span>
+      <span class="orb" aria-hidden="true"><span class="orb-glow"></span><span class="orb-sphere"><span class="orb-sheen"></span><span class="orb-rim"></span></span></span>
+      <span class="label">Ask AI</span>
     </button>
   </div>
   <div class="measure" aria-hidden="true"></div>

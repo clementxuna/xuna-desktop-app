@@ -83,8 +83,8 @@ function fakeRoot() {
 
 // seed: what the main process answers for this page (see xuna:workspace-memory in src/main.js).
 // askButton: XUNA's header Ask AI button as the page has it, or null for a page without one.
-// page: a page with XUNA's header (see xunaPage), or null for one without.
-function runPreload({ seed, shared = {}, failHook = false, askButton = null, page = null } = {}) {
+// page: a page with XUNA's header (see xunaPage), or null for one without. path: the page's address's path.
+function runPreload({ seed, shared = {}, failHook = false, askButton = null, page = null, path: pagePath = '/' } = {}) {
   const sent = [];
   const ipcListeners = {};
   const observers = [];
@@ -118,6 +118,7 @@ function runPreload({ seed, shared = {}, failHook = false, askButton = null, pag
   globalThis.getComputedStyle = (element) => ({ colorScheme: 'normal', getPropertyValue: (name) => element?.cssVariables?.[name] ?? '', ...element?.computed });
   globalThis.window = {
     localStorage,
+    location: { pathname: pagePath },
     innerWidth: page?.innerWidth ?? 1280,
     matchMedia: () => ({ matches: false, addEventListener() {} }),
     addEventListener: (type, listener) => (listeners[type] ??= []).push(listener),
@@ -352,6 +353,7 @@ function box(tagName, rect, { children = [], computed = {} } = {}) {
     tagName,
     children,
     computed,
+    isConnected: true,
     parentElement: null,
     attributes: new Set(),
     getBoundingClientRect: () => ({ ...rect, right: rect.left + rect.width, bottom: rect.top + rect.height }),
@@ -407,16 +409,67 @@ test("a tab's page finds XUNA's header and says how tall it is, the room its con
   assert.equal(headerReports(run).length, 1); // nothing changed, so nothing more is said
 });
 
-test("a page without XUNA's header, or with one anywhere but along the top, has no title bar to offer, once it has loaded", (t) => {
+test("a page without XUNA's header, or with one anywhere but along the top, has no title bar to offer, once XUNA has settled", (t) => {
+  // XUNA starts with its loader, which has no header, so until then the bar keeps what it expects.
   t.mock.timers.enable({ apis: ['setTimeout'] });
   for (const page of [null, xunaPage({ top: 40 }), xunaPage({ width: 600 })]) {
     const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
     run.dispatch('DOMContentLoaded');
     run.dispatch('load');
     t.mock.timers.tick(250);
+    assert.deepEqual(headerReports(run), []);
+    t.mock.timers.tick(10_000);
     assert.deepEqual(headerReports(run), [null]);
     run.restore();
   }
+});
+
+test("XUNA's sign-in page has no title bar to offer as soon as it has loaded, wherever XUNA started", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }) });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.dispatch('load');
+  t.mock.timers.tick(250);
+  assert.deepEqual(headerReports(run), []); // XUNA's loader, at /
+  run.page.location.pathname = '/login'; // signed out: XUNA sends the page to its sign-in
+  run.mutate(); // in the task that drew it
+  assert.deepEqual(headerReports(run), [null]);
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.deepEqual(headerReports(run), [null]); // said once
+});
+
+test("once a page has shown XUNA's header, the header going is news at once", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.dispatch('load');
+  assert.equal(headerReports(run).length, 1);
+  page.logo = null; // XUNA moves to a page of its own without the header
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.deepEqual(headerReports(run).at(-1), null);
+});
+
+test("XUNA's header is marked the moment XUNA draws it, so the room made for the strip is there from its first frame", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const { logo } = page;
+  page.logo = null; // XUNA's loader
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:title-bar-row', { inset: 317, logo: true }); // one row, as the window opened
+  page.logo = logo; // XUNA draws its header
+  run.mutate(); // in the same task as XUNA's change, before the page is painted
+  assert.ok(page.header.attributes.has('data-xuna-desktop-bar'));
+  // and the main process hears of it at once, not on the next look, so a bar still waiting for it changes now
+  assert.deepEqual(headerReports(run).map((report) => report?.height), [56]);
+  t.mock.timers.tick(250);
+  assert.equal(headerReports(run).length, 1);
 });
 
 test("a page says it has no XUNA header only once it has loaded, since XUNA draws its header after the page starts", (t) => {
@@ -487,10 +540,10 @@ test('the room the main process makes for the strip is applied to the page, kept
   const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page: xunaPage() });
   t.after(run.restore);
   run.dispatch('DOMContentLoaded');
-  run.fromMain('xuna:title-bar-row', { inset: 184, inactive: true });
+  run.fromMain('xuna:title-bar-row', { inset: 184 });
   assert.ok(run.root.attributes.has('data-xuna-desktop-row'));
   assert.equal(run.root.properties.get('--xuna-desktop-row-inset'), '184px');
-  assert.ok(run.root.attributes.has('data-xuna-desktop-inactive'));
+  assert.deepEqual([...run.root.attributes], ['data-xuna-desktop-row']); // nothing fades with the window behind
   run.root.properties.clear(); // XUNA's own code resets <html>'s style
   run.mutate();
   t.mock.timers.tick(250);

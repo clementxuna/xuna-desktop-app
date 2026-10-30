@@ -36,9 +36,3 @@
 :root[data-xuna-desktop-logo] header a[aria-label="Go to home"] {
   display: none !important;
 }
-
-/* The window isn't in front: the header's contents fade, as the strip's controls and macOS's own
-   toolbars do. */
-:root[data-xuna-desktop-row][data-xuna-desktop-inactive] [data-xuna-desktop-bar] > * {
-  opacity: 0.5;
-}

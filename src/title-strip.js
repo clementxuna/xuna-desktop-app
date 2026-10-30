@@ -26,20 +26,27 @@ let current = {
   askAi: { available: false, open: false, colors: null },
   bar: { mode: 'strip', lights: true },
   history: { back: false, forward: false },
-  focused: true,
 };
 let renaming = null; // the tab whose name is being typed; it is redrawn once that ends
 let dragging = null; // the tab being dragged along the strip; the tabs are redrawn once it is let go
 let clicksIgnoredUntil = 0; // the click that ends a drag doesn't also show the tab
 let measured = '';
+// The bar's measure waits for what it is made of: the tabs, which the main process sends, and XUNA's type,
+// Inter, whose arrival changes their widths. Until then the main process keeps the measure it has, the one
+// the window opened with, so the bar keeps its size while the window opens.
+let told = false; // the main process has said what to draw
+let typeArrived = false; // Inter has loaded, or isn't coming: offline, or not within FONT_WAIT_MS
+const FONT_WAIT_MS = 3000;
 
 bridge.onChange((state) => {
   current = state;
+  told = true;
   root.dataset.theme = state.dark ? 'dark' : 'light';
-  showBar(state.bar, state.focused);
+  showBar(state.bar);
   showHistory(state.history, state.bar);
   showAskAi(state.askAi);
   if (!renaming && !dragging) render();
+  root.dataset.ready = '';
   measure();
 });
 bridge.onRename(startRename);
@@ -47,15 +54,19 @@ bridge.onPick(pick); // ⌘T
 addButton.addEventListener('click', pick);
 askButton.addEventListener('click', () => bridge.askAi());
 homeButton.addEventListener('click', () => bridge.home());
-homeButton.querySelector('img').addEventListener('load', measure); // the logo's width is known once it has loaded
 backButton.addEventListener('click', () => bridge.back());
 forwardButton.addEventListener('click', () => bridge.forward());
-document.fonts?.addEventListener('loadingdone', measure); // Inter arriving changes the tabs' widths
+const typeLoaded = () => {
+  typeArrived = true;
+  measure();
+};
+document.fonts?.load('500 13px Inter').then(typeLoaded, typeLoaded);
+setTimeout(typeLoaded, FONT_WAIT_MS);
+document.fonts?.addEventListener('loadingdone', measure); // more of Inter, for a name in another script say
 
 // bar: the mode, height and colours the main process chose (see macWindowLayout in src/title-bar.js),
-// whether the window has macOS's three buttons, and how anything covering XUNA's page looks. focused:
-// whether the window is in front.
-function showBar(bar = {}, focused = true) {
+// whether the window has macOS's three buttons, and how anything covering XUNA's page looks.
+function showBar(bar = {}) {
   const mode = bar.mode === 'one-row' ? 'one-row' : 'strip';
   root.dataset.mode = mode;
   setVariable('--lights', `${layout.lightsZone({ lights: bar.lights !== false, mode })}px`);
@@ -65,7 +76,6 @@ function showBar(bar = {}, focused = true) {
   setVariable('--cover-filter', bar.cover?.filter);
   setVariable('--cover-tint', bar.cover?.tint);
   root.toggleAttribute('data-covered', Boolean(bar.cover));
-  root.toggleAttribute('data-inactive', focused === false);
 }
 
 function setVariable(name, value) {
@@ -92,8 +102,6 @@ function showAskAi({ available, open, colors } = {}) {
     if (colors) orb.style.setProperty(name, colors[index]);
     else orb.style.removeProperty(name);
   });
-  if (colors) orb.parentElement.style.setProperty('--glow', colors[1]);
-  else orb.parentElement.style.removeProperty('--glow');
 }
 
 // The main process pops the menu up at the + button, so it is told where the button is.
@@ -106,6 +114,7 @@ function pick() {
 // process chooses between one row and the strip. It is measured the same way in either mode, so the
 // choice never changes what it was made on.
 function measure() {
+  if (!told || !typeArrived) return;
   const tabNaturals = [...measurer.children].map((item) => item.getBoundingClientRect().width);
   const widths = layout.clusterWidths({
     lights: current.bar?.lights !== false,

@@ -115,8 +115,33 @@ reason for it.
   - The strip measures its left end the same way in either mode, so the choice never changes what
     it was made on. The header still counts as XUNA's own however far it has been moved over, so
     long rows of tabs don't send it back and forth.
-  - A page says it has no header only once it has loaded, as XUNA draws its header after the page
-    starts, so reloading a page keeps one row.
+  - A page says it has no header only once XUNA has settled: at its sign-in page (`/login`, where
+    it sends anyone not signed in), or ten seconds after the page has loaded. XUNA shows its loader,
+    which has no header, before anything else, so a reload, and XUNA's loader, keep one row.
+  - XUNA's header is marked the moment XUNA draws it, in the task that drew it, so the room made for
+    the strip is there from its first frame; the header's first appearance, or the sign-in page's,
+    is reported at once rather than on the preload's next look, a fifth of a second later. (Until
+    1.6.3 the header showed unmoved under the strip's left end for that long, then slid over.)
+- **The window opens with the bar as it last closed.** Until 1.6.3 every window opened with the
+  strip, as nothing yet said XUNA would show its header, and switched to one row once XUNA had drawn
+  it, behind its loader: the page jumped up 40 pixels, the strip shrank to the bar's left end, the
+  three buttons moved, and XUNA's header slid over. A light XUNA on a dark Mac also opened with a
+  black bar that then turned white. Now `title-bar.json` in the app's data keeps, as the window
+  starts closing, the tab in front's header (without whatever covered it), the strip's measure and
+  XUNA's theme (`rememberedBar` in `src/title-bar.js`), and the next window starts from them: in
+  one row, the three buttons already there, if that is how the last one closed.
+  - A tab whose page hasn't shown XUNA's header yet, at start-up or opened from +, expects the
+    header last seen in any tab. Until the page has shown its header, the bar lets it show through,
+    so over XUNA's loader its left end is the logo, Back, Forward, the tabs and +, not a box of its
+    own; it takes the header's colours as the header appears.
+  - The strip shows nothing until the main process has said what to draw, which it does as soon as
+    the strip's script is listening. It measures itself only once it has its tabs and XUNA's Inter
+    (or three seconds have passed), and its logo has its size before its image loads, so the bar
+    doesn't change size as they arrive. Until 1.6.3 the strip drew a default bar first, and its first
+    measure, made before it had its tabs, briefly shrank the bar.
+  - A window that last closed without XUNA's header in front, signed out say, opens with the strip.
+    One that closed in one row but finds itself signed out shows its left end over XUNA's loader
+    until XUNA shows its sign-in page, and then the strip.
   - It follows the page's zoom, which the main process knows at once; the page's own word on its
     width lags while the window is resized. The bar is as tall as the zoomed header, and the room
     made in the header is in the page's own pixels. The strip's own controls stay their size, as a
@@ -128,18 +153,25 @@ reason for it.
 - **Back and Forward in the bar,** after the three buttons and XUNA's logo, as Slack, Notion and Arc have them:
   the app has no browser buttons, and ⌘[ and ⌘] had nothing to click. They act on the tab in
   front and are dimmed while there is nowhere to go.
-- **The bar fades while the window is in the background,** as macOS's own toolbars do: the
-  strip's controls and, in one row, XUNA's header's contents, both at once.
+- **Nothing in the bar fades with the window in the background.** Until 1.6.3 the strip's
+  controls and, in one row, XUNA's header's contents faded to half, as macOS's own toolbars do.
+  That dimmed XUNA's Ask AI orb, which should keep its colour, as any app's coloured content does,
+  and flashed the whole bar at every change of window. macOS's three buttons still grey out.
 - **Ask AI at the strip's right end, beside the + button,** where XUNA's header puts its own next
   to the workspace switcher. It presses XUNA's own Ask AI button in the tab in front (the header
   button, `aria-label="Ask AI"`), so the assistant opens and closes exactly as it does from
   XUNA: XUNA offers no other way in, no shortcut, event or address. The page's preload says
-  whether the button is there (it isn't on the sign-in page, and the strip's waits, dimmed),
-  whether the assistant is open, and the orb's colours.
+  whether the button is there (it isn't on the sign-in page, and the strip's waits, its label
+  dimmed), whether the assistant is open, and the orb's colours.
   - It is drawn as XUNA draws its own: the outline button with the values XUNA's stylesheet
-    computes in each theme, and XUNA's orb (SiriOrb) ported to CSS, in the workspace's own orb
-    colours, so a white-labelled workspace's shows its brand. It turns, drifts and breathes as
-    XUNA's does, and stands still with Reduce Motion on. The strip's type is XUNA's Inter.
+    computes in each theme, and XUNA's header orb (AskAiOrb, an 18px SiriOrb at rest) in CSS, with
+    SiriOrb's own values at that size, in the workspace's own orb colours, so a white-labelled
+    workspace's shows its brand. It turns once every six seconds, its mesh running to 720 degrees
+    over two turns' time, where every layer is back where it began, and drifts, breathes and glows
+    as XUNA's does; it stands still with Reduce Motion on. The strip's type is XUNA's Inter.
+  - It never dims: while there is no XUNA button to press yet, only its label does. Until 1.6.3 the
+    orb turned at half XUNA's pace, which at 18 pixels reads as standing still, one of its layers
+    jumped half a turn every 12 seconds, and it lacked XUNA's frosted face and resting colour.
   - In one row it goes: XUNA's own Ask AI is in the same row.
 - **The colours are exactly XUNA's header's:** `#030303` in dark mode (the page colour, which
   the header shares there) and white in light mode, so the title bar and the header read as one
@@ -167,6 +199,10 @@ reason for it.
     sign-in page (it would read "Workspace 1"), not while signed out, and not with tabs turned off,
     when its name would stop following its workspace. In full screen with one tab there is no bar,
     and Rename does nothing there.
+  - You are signed in once XUNA has listed your workspaces this run, or, until it has, while it
+    shows its header or the window expects it to, so a returning user's tab is there from the
+    first frame rather than appearing as XUNA loads. (In 1.6.2 a list not yet made counted as
+    signed in, so after signing out in one run the tab showed on the sign-in page in the next.)
   - It takes room at the bar's left end that + alone didn't, at least 52px, so in windows just
     over 1024px wide one row gives way to the strip a little sooner than before. Each tab is its own `WebContentsView`, and only the one shown is visible. The others
   keep running, so a call or a draft carries on in the background. The window opens with the
