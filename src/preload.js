@@ -40,52 +40,64 @@ function throttled(look) {
   };
 }
 
-// XUNA starts with its loader, which has no header, so until XUNA has settled a page without one isn't
-// news: the bar keeps the header it expects (see addWorkspaceTabs in src/main.js). XUNA has settled once
-// it shows its sign-in page, where it sends anyone not signed in, or SETTLE_MS after its page has loaded.
-const SIGN_IN_PAGE = /^\/login(?:\/|$)/;
+// XUNA draws no header while its loader shows, as it starts and as it switches workspace, so a page
+// without one is news only once XUNA has settled: on its pages drawn without the header, or SETTLE_MS
+// after the page loaded or its header went. Until then the bar keeps its place for the header (see
+// addWorkspaceTabs in src/main.js). The pages: signing in and up, and XUNA's full-screen flows, its
+// onboarding, iMessage's and the RVM campaign wizard (shouldRenderFullscreenOnboarding in its dashboard-shell.tsx).
+const PAGES_WITHOUT_HEADER = /^\/(?:login|signup|auth)(?:\/|$)|^\/(?:onboarding|imessage\/onboarding|rvm\/campaigns\/(?:new\/[^/]+|[^/]+\/edit))\/?$/;
 const SETTLE_MS = 10_000;
 
 // In one row the tab's XUNA page fills the window and XUNA's own header is its title bar (see
 // macWindowLayout in src/title-bar.js, and src/one-row.css). This finds the header and tells the main
 // process how tall it is and how much room its contents need, in CSS pixels; the page's width in them,
-// which gives its zoom; its colours; and how anything covering it looks. It applies the room the main
-// process makes at the header's start for the strip.
+// which gives its zoom; its colours; and how anything covering it looks; or, without one, whether XUNA
+// may yet draw it (waiting). It applies the room the main process makes at the header's start for the strip.
 function watchHeader() {
   let header = null;
   let row = null; // the main process's word: { inset } in one row, null otherwise
   let logo = false; // the bar shows XUNA's logo, so XUNA's header hides its own (src/one-row.css)
   let covered = false;
   let loaded = false;
-  let settled = false; // SETTLE_MS since the page loaded
-  let shown = false; // the page has shown XUNA's header, so the header going is news at once
-  let last = '';
+  let settled = false; // SETTLE_MS have passed since the page loaded or its header went
+  let settling = null;
+  let said; // what the main process was last told: the header's description, 'waiting' or 'none'
   const mark = (found) => {
     if (found === header) return;
     header?.removeAttribute('data-xuna-desktop-bar');
     header = found;
     header?.setAttribute('data-xuna-desktop-bar', '');
   };
+  const settleLater = () => {
+    settled = false;
+    clearTimeout(settling);
+    settling = setTimeout(() => {
+      settled = true;
+      report();
+    }, SETTLE_MS);
+  };
   const report = () => {
+    const had = header !== null;
     mark(findHeader(row?.inset ?? 0));
     const state = header ? describeHeader(header) : null;
     covered = Boolean(state?.cover);
     applyRow(row, covered, logo); // each time, in case XUNA's own code took it away
-    if (state) shown = true;
-    else if (!shown && !(loaded && (settled || SIGN_IN_PAGE.test(window.location.pathname)))) return;
-    const serialized = JSON.stringify(state);
-    if (serialized === last) return;
-    last = serialized;
-    ipcRenderer.send('xuna:title-bar-header', state);
+    if (had && !header && loaded) settleLater(); // the header went, as XUNA switches workspace say
+    const waiting = !state && !(loaded && (settled || PAGES_WITHOUT_HEADER.test(window.location.pathname)));
+    if (waiting && said === undefined) return; // nothing to take back: the bar keeps what it expects
+    const word = state ? JSON.stringify(state) : waiting ? 'waiting' : 'none';
+    if (word === said) return;
+    said = word;
+    ipcRenderer.send('xuna:title-bar-header', state, waiting);
   };
   const soon = throttled(report);
-  // XUNA's header drawn, or its sign-in page shown, is news at once, in the task that drew it: the header
-  // is marked before it is painted, so in one row the room made for the strip is there from its first
-  // frame, and a bar waiting for either changes now rather than on the next look.
+  // XUNA's header drawn or gone, or one of its pages without it shown, is news at once, in the task that
+  // drew it: a header is marked before it is painted, so in one row the room made for the strip is there
+  // from its first frame, and a bar waiting for any of them changes now rather than on the next look.
   const changed = () => {
-    const drawn = !header?.isConnected && findHeader(row?.inset ?? 0);
-    const signIn = !shown && loaded && last !== 'null' && SIGN_IN_PAGE.test(window.location.pathname);
-    if (drawn || signIn) report();
+    const swapped = header ? !header.isConnected : findHeader(row?.inset ?? 0) !== null;
+    const without = !header && loaded && said !== 'none' && PAGES_WITHOUT_HEADER.test(window.location.pathname);
+    if (swapped || without) report();
     else soon();
   };
   window.addEventListener('DOMContentLoaded', () => {
@@ -94,11 +106,15 @@ function watchHeader() {
   });
   window.addEventListener('load', () => {
     loaded = true;
-    setTimeout(() => {
-      settled = true;
-      report();
-    }, SETTLE_MS);
+    settleLater();
     soon();
+  });
+  // A page back from the back/forward cache says again what it shows, which the main process forgot as the
+  // tab navigated.
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    said = undefined;
+    report();
   });
   window.addEventListener('resize', soon);
   document.addEventListener('load', soon, true); // an image arriving, a workspace's logo with no bar say, changes the room the header needs

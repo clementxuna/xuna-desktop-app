@@ -96,8 +96,9 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
   - a XUNA dialog blurring the bar's left end with the page, and nothing in the bar fading while
     the window is in the background, XUNA's Ask AI orb keeping its colour;
   - opening the app, and opening a workspace from +: the bar drawn once, in its place, the three
-    buttons already in their one-row place, and nothing moving while XUNA loads; after signing out
-    and quitting, the next window opening with the strip;
+    buttons already in their one-row place, and nothing moving while XUNA loads; switching workspace
+    in XUNA's own switcher keeping one row through XUNA's loader; opening a workspace from + in a
+    zoomed window (⌘+); after signing out and quitting, the next window opening with the strip;
   - Back and Forward; clicking a tab to show it, double-clicking it to rename it (and Rename Tab…
     from its right-click menu leaving the keyboard in the name field), dragging it to a new place,
     and its right-click menu.

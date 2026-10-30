@@ -115,41 +115,48 @@ reason for it.
   - The strip measures its left end the same way in either mode, so the choice never changes what
     it was made on. The header still counts as XUNA's own however far it has been moved over, so
     long rows of tabs don't send it back and forth.
-  - A page says it has no header only once XUNA has settled: at its sign-in page (`/login`, where
-    it sends anyone not signed in), or ten seconds after the page has loaded. XUNA shows its loader,
-    which has no header, before anything else, so a reload, and XUNA's loader, keep one row.
+  - XUNA draws no header while its loader shows, as it starts and as it switches workspace, so a
+    page says it has none only once XUNA has settled: on its pages drawn without the header (signing
+    in and up, and its full-screen flows: onboarding, iMessage's and the RVM campaign wizard), or ten
+    seconds after the page loaded or its header went. Until then a page whose header has gone says
+    the bar should wait: it keeps its place, and lets XUNA's loader show through. So a reload, a
+    workspace switch in XUNA's own switcher and XUNA's loader all keep one row, and the header comes
+    back where it was. (Until 1.6.3 a switch sent the bar to the strip and back.)
   - XUNA's header is marked the moment XUNA draws it, in the task that drew it, so the room made for
-    the strip is there from its first frame; the header's first appearance, or the sign-in page's,
-    is reported at once rather than on the preload's next look, a fifth of a second later. (Until
-    1.6.3 the header showed unmoved under the strip's left end for that long, then slid over.)
+    the strip is there from its first frame. The header drawn or gone, or a page without it shown, is
+    reported at once rather than on the preload's next look, a fifth of a second later. (Until 1.6.3
+    the header showed unmoved under the strip's left end for that long, then slid over.)
+  - It follows the page's zoom, which the main process knows at once, and places the bar at it as
+    soon as the page in front starts; the page's own word on its width lags while the window is
+    resized. The bar is as tall as the zoomed header, and the room made in the header is in the
+    page's own pixels. The strip's own controls stay their size, as a browser's do when a page is
+    zoomed.
+  - While a XUNA dialog's blurred backdrop covers the page, the bar's left end takes on the same
+    look, from the backdrop's blur and tint as the page reports them, and takes no clicks. XUNA's
+    menus don't count as covering: while one is open the page takes no clicks at all, which is not
+    the same.
 - **The window opens with the bar as it last closed.** Until 1.6.3 every window opened with the
   strip, as nothing yet said XUNA would show its header, and switched to one row once XUNA had drawn
   it, behind its loader: the page jumped up 40 pixels, the strip shrank to the bar's left end, the
   three buttons moved, and XUNA's header slid over. A light XUNA on a dark Mac also opened with a
   black bar that then turned white. Now `title-bar.json` in the app's data keeps, as the window
-  starts closing, the tab in front's header (without whatever covered it), the strip's measure and
-  XUNA's theme (`rememberedBar` in `src/title-bar.js`), and the next window starts from them: in
-  one row, the three buttons already there, if that is how the last one closed.
-  - A tab whose page hasn't shown XUNA's header yet, at start-up or opened from +, expects the
-    header last seen in any tab. Until the page has shown its header, the bar lets it show through,
-    so over XUNA's loader its left end is the logo, Back, Forward, the tabs and +, not a box of its
-    own; it takes the header's colours as the header appears.
+  starts closing, XUNA's header (without whatever covered it), the strip's measure and XUNA's theme
+  (`rememberedBar` in `src/title-bar.js`), and the next window starts from them: in one row, the
+  three buttons already there, if that is how the last one closed. Signed in, the header kept is
+  the last one seen, since the next window opens on XUNA's app whatever the tab in front showed
+  (the offline page say); otherwise it is the tab in front's, none on the sign-in page.
+  - A tab whose page hasn't said anything about XUNA's header yet, at start-up or opened from +,
+    expects the header last seen in any tab. While its page doesn't show the header, the bar lets
+    the page show through, so over XUNA's loader its left end is the logo, Back, Forward, the tabs
+    and +, not a box of its own; it takes the header's colours as the header appears.
   - The strip shows nothing until the main process has said what to draw, which it does as soon as
     the strip's script is listening. It measures itself only once it has its tabs and XUNA's Inter
     (or three seconds have passed), and its logo has its size before its image loads, so the bar
     doesn't change size as they arrive. Until 1.6.3 the strip drew a default bar first, and its first
     measure, made before it had its tabs, briefly shrank the bar.
-  - A window that last closed without XUNA's header in front, signed out say, opens with the strip.
-    One that closed in one row but finds itself signed out shows its left end over XUNA's loader
-    until XUNA shows its sign-in page, and then the strip.
-  - It follows the page's zoom, which the main process knows at once; the page's own word on its
-    width lags while the window is resized. The bar is as tall as the zoomed header, and the room
-    made in the header is in the page's own pixels. The strip's own controls stay their size, as a
-    browser's do when a page is zoomed.
-  - While a XUNA dialog's blurred backdrop covers the page, the bar's left end takes on the same
-    look, from the backdrop's blur and tint as the page reports them, and takes no clicks. XUNA's
-    menus don't count as covering: while one is open the page takes no clicks at all, which is not
-    the same.
+  - A window that last closed signed out opens with the strip. One that closed in one row but finds
+    itself signed out shows its left end over XUNA's loader until XUNA shows its sign-in page, and
+    then the strip.
 - **Back and Forward in the bar,** after the three buttons and XUNA's logo, as Slack, Notion and Arc have them:
   the app has no browser buttons, and ⌘[ and ⌘] had nothing to click. They act on the tab in
   front and are dimmed while there is nowhere to go.

@@ -394,6 +394,10 @@ function xunaPage({ top = 0, width = 1280 } = {}) {
   return page;
 }
 const headerReports = (run) => run.sent.filter(([channel]) => channel === 'xuna:title-bar-header').map((message) => message[1]);
+// What each word to the main process said: a header's height, 'waiting' (none just now, but XUNA may yet
+// draw it: keep its place) or 'none'.
+const headerWords = (run) =>
+  run.sent.filter(([channel]) => channel === 'xuna:title-bar-header').map(([, header, waiting]) => header?.height ?? (waiting === true ? 'waiting' : 'none'));
 
 test("a tab's page finds XUNA's header and says how tall it is, the room its contents need, and its colours", (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -417,9 +421,9 @@ test("a page without XUNA's header, or with one anywhere but along the top, has 
     run.dispatch('DOMContentLoaded');
     run.dispatch('load');
     t.mock.timers.tick(250);
-    assert.deepEqual(headerReports(run), []);
+    assert.deepEqual(headerWords(run), []);
     t.mock.timers.tick(10_000);
-    assert.deepEqual(headerReports(run), [null]);
+    assert.deepEqual(headerWords(run), ['none']);
     run.restore();
   }
 });
@@ -431,27 +435,106 @@ test("XUNA's sign-in page has no title bar to offer as soon as it has loaded, wh
   run.dispatch('DOMContentLoaded');
   run.dispatch('load');
   t.mock.timers.tick(250);
-  assert.deepEqual(headerReports(run), []); // XUNA's loader, at /
+  assert.deepEqual(headerWords(run), []); // XUNA's loader, at /
   run.page.location.pathname = '/login'; // signed out: XUNA sends the page to its sign-in
   run.mutate(); // in the task that drew it
-  assert.deepEqual(headerReports(run), [null]);
+  assert.deepEqual(headerWords(run), ['none']);
   run.mutate();
   t.mock.timers.tick(250);
-  assert.deepEqual(headerReports(run), [null]); // said once
+  assert.deepEqual(headerWords(run), ['none']); // said once
 });
 
-test("once a page has shown XUNA's header, the header going is news at once", (t) => {
+test("XUNA's other pages without its header, sign-up and its full-screen flows, have no title bar to offer once loaded", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const path of ['/login', '/signup', '/auth/callback', '/onboarding', '/imessage/onboarding', '/rvm/campaigns/new/voicemail', '/rvm/campaigns/42/edit']) {
+    const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), path });
+    run.dispatch('DOMContentLoaded');
+    assert.deepEqual(headerWords(run), [], path); // not before the page has loaded
+    run.dispatch('load');
+    t.mock.timers.tick(250);
+    assert.deepEqual(headerWords(run), ['none'], path);
+    run.restore();
+  }
+  // Elsewhere, as at XUNA's campaign list, XUNA may yet draw its header.
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), path: '/rvm/campaigns' });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.dispatch('load');
+  t.mock.timers.tick(250);
+  assert.deepEqual(headerWords(run), []);
+});
+
+test("as XUNA switches workspace its header goes and comes back: the bar is told at once to keep its place, then has it back", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const { logo } = page;
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.dispatch('load');
+  // XUNA's loader takes the header's place
+  page.header.isConnected = false;
+  page.logo = null;
+  run.mutate();
+  assert.deepEqual(headerWords(run), [56, 'waiting']);
+  t.mock.timers.tick(5000);
+  assert.deepEqual(headerWords(run), [56, 'waiting']);
+  // and the header is back
+  page.header.isConnected = true;
+  page.logo = logo;
+  run.mutate();
+  assert.deepEqual(headerWords(run), [56, 'waiting', 56]);
+  t.mock.timers.tick(10_000);
+  assert.deepEqual(headerWords(run), [56, 'waiting', 56]);
+});
+
+test("a header gone for good leaves no title bar to offer, once XUNA has settled without it", (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const page = xunaPage();
   const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
   t.after(run.restore);
   run.dispatch('DOMContentLoaded');
   run.dispatch('load');
-  assert.equal(headerReports(run).length, 1);
-  page.logo = null; // XUNA moves to a page of its own without the header
+  t.mock.timers.tick(9000); // long after the page loaded
+  page.header.isConnected = false;
+  page.logo = null;
   run.mutate();
+  t.mock.timers.tick(9000);
+  assert.deepEqual(headerWords(run), [56, 'waiting']); // ten seconds from the header going, not the load
+  t.mock.timers.tick(1000);
+  assert.deepEqual(headerWords(run), [56, 'waiting', 'none']);
+});
+
+test("a header XUNA draws afresh in place of the one it had is marked before it is painted", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  const first = page.header;
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:title-bar-row', { inset: 317, logo: true });
+  first.isConnected = false; // XUNA mounts its header again
+  const again = xunaPage();
+  page.logo = again.logo;
+  page.at = again.at;
+  run.mutate();
+  const second = again.header;
+  assert.ok(second.attributes.has('data-xuna-desktop-bar'));
+  assert.ok(!first.attributes.has('data-xuna-desktop-bar'));
+  assert.deepEqual(headerWords(run), [56]); // the same header as before: nothing new to say
   t.mock.timers.tick(250);
-  assert.deepEqual(headerReports(run).at(-1), null);
+});
+
+test('a page back from the back/forward cache says again what it shows, which the main process forgot as it navigated', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page: xunaPage() });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.dispatch('pageshow', { persisted: false });
+  assert.deepEqual(headerWords(run), [56]);
+  run.dispatch('pageshow', { persisted: true });
+  assert.deepEqual(headerWords(run), [56, 56]);
+  t.mock.timers.tick(250);
 });
 
 test("XUNA's header is marked the moment XUNA draws it, so the room made for the strip is there from its first frame", (t) => {
