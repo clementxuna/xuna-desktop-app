@@ -79,7 +79,9 @@ function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter
     try {
       result = await updater.checkForUpdates();
     } catch {
-      // The updater logs the error itself.
+      // The updater logs the error itself. A look that failed, before the network was back after waking
+      // say, doesn't count: coming back to XUNA looks again.
+      lastCheck = -Infinity;
       if (asked) ui.tell({ type: 'warning', message: 'Couldn’t check for updates', detail: 'Check your internet connection and try again.' });
       return;
     }

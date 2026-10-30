@@ -226,6 +226,30 @@ test('coming back to XUNA looks for an update, unless it looked in the last five
   assert.equal(updater.checks, 2);
 });
 
+test('the half-hourly look and the look on waking hold off the look on return too', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const { updater, ui, updates } = setUp();
+  const comeBack = () => ui.everyFocus.forEach((callback) => callback());
+  updates.start();
+  t.mock.timers.tick(HOURS / 2); // the half-hourly look
+  comeBack();
+  assert.equal(updater.checks, 2);
+  t.mock.timers.tick(10 * 60 * 1000);
+  ui.wakeListeners[0]();
+  comeBack();
+  assert.equal(updater.checks, 3);
+});
+
+test('a look that failed, before the network was back after waking say, does not hold off the look on return', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const { updater, ui, updates } = setUp({ results: [new Error('net::ERR_INTERNET_DISCONNECTED')] });
+  const comeBack = () => ui.everyFocus.forEach((callback) => callback());
+  updates.start(); // the look at start-up fails
+  await settle();
+  comeBack();
+  assert.equal(updater.checks, 2);
+});
+
 test('checks run at start-up and every half hour, and carry on once an update is ready, so a newer one can replace it', (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] });
   const { updater, updates } = setUp();
