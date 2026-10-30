@@ -3,10 +3,10 @@
 // Draws the Mac title strip (src/title-strip.html) from what the main process sends (see
 // addWorkspaceTabs in src/main.js), and passes its clicks back through src/title-strip-preload.js: XUNA's
 // logo, which goes home in the tab in front, Back and Forward, the workspace tabs, the + button and, in
-// the strip, Ask AI. With one tab open no tabs show;
-// + opens a menu of the account's workspaces, below it. Clicking a tab shows it, double-clicking renames
-// it, right-clicking opens its menu and dragging moves it. Ask AI presses XUNA's own in the tab in front,
-// and is drawn as XUNA draws it.
+// the strip, Ask AI. You are always in a workspace, so its tab always shows, alone too, without its ×
+// then, as the last tab can't close. + opens a menu of the account's workspaces, below it. Clicking a
+// tab shows it, double-clicking renames it, right-clicking opens its menu and dragging moves it. Ask AI
+// presses XUNA's own in the tab in front, and is drawn as XUNA draws it.
 
 const bridge = window.workspaceTabs;
 const layout = window.titleStripLayout;
@@ -121,9 +121,8 @@ function measure() {
 }
 
 function render() {
-  const shown = current.tabs.length > 1 ? current.tabs : [];
-  list.replaceChildren(...shown.map((tab) => tabButtons(tab, true)));
-  measurer.replaceChildren(...shown.map((tab) => tabButtons(tab, false)));
+  list.replaceChildren(...current.tabs.map((tab) => tabButtons(tab, true)));
+  measurer.replaceChildren(...current.tabs.map((tab) => tabButtons(tab, false)));
 }
 
 // A tab's buttons: its name, which shows it, and its close button. live: false for the measurer's copy.

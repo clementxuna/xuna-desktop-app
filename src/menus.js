@@ -20,7 +20,7 @@ function macWindowMenu(tabs) {
       { type: 'separator' },
       { label: 'Open Workspace…', accelerator: 'Cmd+T', click: () => tabs.pick() },
       { label: 'Close Workspace Tab', accelerator: 'Cmd+W', enabled: several, click: () => tabs.close() },
-      { label: 'Rename Workspace Tab…', enabled: several, click: () => tabs.startRename() },
+      { label: 'Rename Workspace Tab…', click: () => tabs.startRename() }, // a tab on its own shows too
       { type: 'separator' },
       { label: 'Show Next Workspace Tab', accelerator: 'Ctrl+Tab', enabled: several, click: () => tabs.cycle(1) },
       { label: 'Show Previous Workspace Tab', accelerator: 'Ctrl+Shift+Tab', enabled: several, click: () => tabs.cycle(-1) },

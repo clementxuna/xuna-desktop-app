@@ -71,6 +71,9 @@
     .close, .add, .history button { display: grid; place-items: center; flex: none; padding: 0; color: var(--muted); }
     .close { width: 18px; height: 18px; margin: 0 4px 0 2px; border-radius: 4px; visibility: hidden; }
     .tab:hover .close, .tab.active .close, .close:focus-visible { visibility: visible; }
+    /* A tab on its own, the workspace you're in, has no ×: the last tab can't close. */
+    .tab:only-child .close { display: none; }
+    .tab:only-child .select { padding-inline-end: 10px; }
     .close:hover { background: var(--hover); color: var(--text); }
     .add, .history button { width: 28px; height: 28px; border-radius: 6px; }
     .add:hover, .history button:hover:not(:disabled) { background: var(--hover); color: var(--text); }

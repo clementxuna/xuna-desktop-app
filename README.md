@@ -32,7 +32,7 @@ build from the same code.
   three buttons, before the tabs. In the strip, Ask AI at its right end opens XUNA's assistant in the tab
   in front, as XUNA's own button does; in one row XUNA's own Ask AI is in the bar. The bar fades
   while the window is in the background.
-- On Mac, several workspaces can be open at once, as tabs in the title bar. The + button (⌘T) opens a panel drawn like XUNA's own workspace picker: a search
+- On Mac, several workspaces can be open at once, as tabs in the title bar; the workspace you're in always has its tab, on its own too. The + button (⌘T) opens a panel drawn like XUNA's own workspace picker: a search
   field over the workspaces the signed-in account can open, grouped as in XUNA's switcher, with
   their logos. Picking one opens it in a new tab, already signed in, or shows the tab it is open
   in (open tabs show their ⌘ shortcut). Clicking a tab, ⌘1 to ⌘9 or ⌃Tab switches between them,

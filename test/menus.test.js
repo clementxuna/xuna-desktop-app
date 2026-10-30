@@ -29,6 +29,16 @@ test("with one tab left, its menu can't close it or the others", () => {
   const menu = tabMenuTemplate({ count: 1, rename() {}, close() {}, closeOthers() {} });
   assert.equal(menu.find((item) => item.label === 'Close Tab').enabled, false);
   assert.equal(menu.find((item) => item.label === 'Close Other Tabs').enabled, false);
+  assert.notEqual(menu.find((item) => item.label === 'Rename Tab…').enabled, false);
+});
+
+test('with one tab, which the bar still shows, the Window menu can rename it but not close it or step to another', () => {
+  const tabs = { list: [{ id: 'workspace-1', label: 'Acme Agency', active: true }], pick() {}, close() {}, startRename() {}, cycle() {}, select() {} };
+  const built = appMenuTemplate({ appContents: () => null, tabs, checkForUpdates() {}, platform: 'darwin' });
+  const item = (label) => menuNamed(built, 'Window').submenu.find((entry) => entry.label === label);
+  assert.notEqual(item('Rename Workspace Tab…').enabled, false);
+  assert.equal(item('Close Workspace Tab').enabled, false);
+  assert.equal(item('Show Next Workspace Tab').enabled, false);
 });
 
 test('on Mac, Check for Updates… sits under About in the app menu, which keeps its usual items', () => {

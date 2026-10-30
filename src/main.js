@@ -651,7 +651,7 @@ function addWorkspaceTabs(win, webPreferences) {
     editing: (active) => (active ? stripPage : pageOf(state.active))?.focus(),
     // The tab shown, unless another is named (from its own menu).
     startRename: (id = state.active) => {
-      if (state.tabs.length < 2 || !state.tabs.some((tab) => tab.id === id)) return; // with one tab the strip shows no tab to rename
+      if (!state.tabs.some((tab) => tab.id === id)) return; // a tab on its own shows too, so it can be renamed
       stripPage.focus();
       stripPage.send('xuna:workspace-tab-rename', id);
     },

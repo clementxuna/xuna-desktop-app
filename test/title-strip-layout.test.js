@@ -10,9 +10,14 @@ test("the strip's controls start clear of macOS's three buttons, which sit furth
   assert.equal(lightsZone({ lights: false, mode: 'one-row' }), 8);
 });
 
-test("with one tab the bar's left end holds XUNA's logo, Back, Forward and + only", () => {
+test("before the strip has drawn its tabs, the bar's left end holds XUNA's logo, Back, Forward and + only", () => {
   // 92 clear of the three buttons, the logo's 96, a 4px gap, Back and Forward's 58, 4, +'s 28 and 8 at the end
   assert.deepEqual(clusterWidths({ lights: true, logo: 96, history: 58, add: 28, tabNaturals: [] }), { natural: 290, minimum: 290 });
+});
+
+test("with one tab, which the bar always shows as you are always in a workspace, the left end makes room for it", () => {
+  // 290, the tab and 4 before +
+  assert.deepEqual(clusterWidths({ lights: true, logo: 96, history: 58, add: 28, tabNaturals: [120] }), { natural: 414, minimum: 342 });
 });
 
 test("with tabs, the bar's left end is as wide as they are at full width, or with each at its narrowest, 48px", () => {
