@@ -79,7 +79,7 @@ reason for it.
   made two bars, with search and Ask AI twice, where Mac apps such as Slack, Linear and Notion
   put the window's buttons in their own top bar. So where the tab in front shows XUNA's header,
   its page fills the window, the three buttons move into the header's middle, and the strip's view
-  covers only the bar's left end: Back and Forward, the workspace tabs and +. XUNA's header moves
+  covers only the bar's left end: XUNA's logo, Back and Forward, the workspace tabs and +. XUNA's header moves
   over to make room and carries on from there, with its own search and Ask AI (`macWindowLayout`
   in `src/title-bar.js`).
   - Nothing changes in XUNA's web app. The preload finds XUNA's header (the `<header>` holding
@@ -125,7 +125,7 @@ reason for it.
     look, from the backdrop's blur and tint as the page reports them, and takes no clicks. XUNA's
     menus don't count as covering: while one is open the page takes no clicks at all, which is not
     the same.
-- **Back and Forward in the bar,** after the three buttons, as Slack, Notion and Arc have them:
+- **Back and Forward in the bar,** after the three buttons and XUNA's logo, as Slack, Notion and Arc have them:
   the app has no browser buttons, and ⌘[ and ⌘] had nothing to click. They act on the tab in
   front and are dimmed while there is nowhere to go.
 - **The bar fades while the window is in the background,** as macOS's own toolbars do: the

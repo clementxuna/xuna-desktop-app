@@ -255,8 +255,10 @@ test("the CSS put in XUNA's page does nothing until the main process turns one r
   for (const selector of selectors) assert.match(selector, /^:root\[data-xuna-desktop-(row|logo)\]/);
 });
 
-test("while the bar shows XUNA's logo, XUNA's header hides its own, a white-labelled workspace's included", () => {
-  const rule = oneRowRule(':root[data-xuna-desktop-logo] [data-xuna-desktop-bar] a[aria-label="Go to home"]');
+test("while the bar shows XUNA's logo, XUNA's header hides its own, a white-labelled workspace's included, from the moment it is drawn", () => {
+  // Any header holding XUNA's home link, not only one the preload has already marked, which it does on
+  // its next look, a moment after XUNA draws it: in the strip the header's logo would show till then.
+  const rule = oneRowRule(':root[data-xuna-desktop-logo] header a[aria-label="Go to home"]');
   assert.match(rule, /display:\s*none\s*!important/);
 });
 

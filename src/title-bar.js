@@ -32,8 +32,8 @@ function macAppViewBounds({ width, height, fullScreen, tabCount = 1 }) {
 }
 
 // In one row, the window has no strip above the page: the XUNA page fills it, and its own header is
-// the title bar. The strip's view covers only the bar's left end, which holds the three buttons, Back
-// and Forward, the tabs and +, and XUNA's header moves over to make room (src/one-row.css), keeping at
+// the title bar. The strip's view covers only the bar's left end, which holds the three buttons, XUNA's
+// logo, Back and Forward, the tabs and +, and XUNA's header moves over to make room (src/one-row.css), keeping at
 // least this much of itself empty to drag the window by. The three buttons sit in the middle of the
 // header, this far from the window's edge. XUNA shows its desktop header only on a page at least
 // ONE_ROW_MIN_PAGE_WIDTH CSS px wide; narrower, it opens a menu over the whole page, whose top left

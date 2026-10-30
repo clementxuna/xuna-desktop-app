@@ -33,7 +33,8 @@ const XUNA_PAGE_PREFERENCES = {
 };
 // With workspace tabs the window's own page stays empty, under the title strip's view and the XUNA pages'.
 const WINDOW_PAGE_PREFERENCES = { contextIsolation: true, sandbox: true, nodeIntegration: false };
-// What makes room in XUNA's header for the strip in one row, put into each tab's page (see src/one-row.css).
+// What makes room in XUNA's header for the strip in one row, and hides XUNA's logo while the bar shows its
+// own, put into each tab's page (see src/one-row.css).
 const ONE_ROW_CSS = fs.readFileSync(path.join(__dirname, 'one-row.css'), 'utf8');
 
 // Development runs get their own profile, so they neither trip an installed copy's single-instance lock nor share its sign-in.
@@ -302,8 +303,8 @@ function showXuna(contents) {
 // macOS draws its title bar in its own grey, whatever theme XUNA shows. So on Mac the window hides it,
 // keeping the three buttons over a bar in XUNA's own colours, drawn by src/title-strip.html in a view
 // above the XUNA pages. Where the tab in front shows XUNA's header, that header is the bar, in one row:
-// the page fills the window, and the strip's view covers only the bar's left end, with Back and Forward,
-// the workspace tabs and +. Elsewhere the strip runs above the page, in XUNA's black or white (see
+// the page fills the window, and the strip's view covers only the bar's left end, with XUNA's logo, Back
+// and Forward, the workspace tabs and +. Elsewhere the strip runs above the page, in XUNA's black or white (see
 // macWindowLayout in src/title-bar.js).
 //
 // Each workspace tab is a XUNA page in a view of its own. The tabs share one sign-in, and each keeps
@@ -582,11 +583,13 @@ function addWorkspaceTabs(win, webPreferences) {
       page.send('xuna:ask-ai-toggle');
       page.focus();
     },
-    // The strip's XUNA logo: XUNA's home in the tab in front, as XUNA's own logo link goes there.
+    // The strip's XUNA logo: XUNA's home in the tab in front, as XUNA's own logo link goes there. A page
+    // outside XUNA's app, such as a payment provider's or the offline page, goes back to XUNA.
     home: () => {
       const page = pageOf(state.active);
       if (!page) return;
-      page.send('xuna:go-home');
+      if (policy.isAppPage(page.getURL())) page.send('xuna:go-home');
+      else page.loadURL(APP_URL).catch(() => {}); // a page that can't load shows the offline page (see showXuna)
       page.focus();
     },
     // What a tab's page says about XUNA's header (see watchHeader in src/preload.js).

@@ -520,6 +520,23 @@ test("while the bar shows XUNA's logo, the page is marked so XUNA's header hides
   t.mock.timers.tick(250);
 });
 
+test("the bar's XUNA logo goes home by pressing XUNA's own logo link, hidden as it is, and does nothing where there is none", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  page.logo.clicks = 0;
+  page.logo.click = () => {
+    page.logo.clicks += 1;
+  };
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:go-home');
+  assert.equal(page.logo.clicks, 1);
+  page.logo = null; // a XUNA page without its header, such as the sign-in page
+  assert.doesNotThrow(() => run.fromMain('xuna:go-home'));
+  t.mock.timers.tick(250);
+});
+
 test('a pop-up offers no title bar', (t) => {
   const popup = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }, 'ws-tab', false), page: xunaPage() });
   t.after(popup.restore);

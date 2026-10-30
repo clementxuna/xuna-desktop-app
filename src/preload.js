@@ -78,7 +78,7 @@ function watchHeader() {
     soon();
   });
   window.addEventListener('resize', soon);
-  document.addEventListener('load', soon, true); // a workspace's logo arriving changes the room the header needs
+  document.addEventListener('load', soon, true); // an image arriving, a workspace's logo with no bar say, changes the room the header needs
   ipcRenderer.on('xuna:title-bar-row', (_event, next) => {
     row = next && Number.isFinite(next.inset) ? { inset: next.inset, inactive: next.inactive === true } : null;
     logo = next?.logo === true;

@@ -1,6 +1,7 @@
 /* XUNA AI on Mac, in one row (see macWindowLayout in src/title-bar.js and watchHeader in
    src/preload.js). The main process puts this into every workspace tab's XUNA page, where it does
-   nothing until the preload marks <html> with data-xuna-desktop-row. Then XUNA's own header, which the
+   nothing until the preload marks <html> with data-xuna-desktop-row, or data-xuna-desktop-logo for the
+   logo rule below. With data-xuna-desktop-row, XUNA's own header, which the
    preload marks data-xuna-desktop-bar, is the window's title bar: it moves over by the width of the
    strip's view at its left end, and its empty space drags the window.
 
@@ -29,8 +30,10 @@
 
 /* Wherever the strip shows, in one row or above the page, it shows XUNA's own logo before the tabs, so
    XUNA's header hides its logo, which a white-labelled workspace replaces with its own. The preload
-   marks <html> with data-xuna-desktop-logo meanwhile. */
-:root[data-xuna-desktop-logo] [data-xuna-desktop-bar] a[aria-label="Go to home"] {
+   marks <html> with data-xuna-desktop-logo meanwhile, as the page starts. The rule takes any header
+   with XUNA's home link, so the logo is hidden from the moment XUNA draws its header, before the
+   preload has found it. */
+:root[data-xuna-desktop-logo] header a[aria-label="Go to home"] {
   display: none !important;
 }
 

@@ -144,6 +144,12 @@ None of these is visible to users today.
     can still drag the window from XUNA's header controls under it, until the strip redraws.
   - With one tab the empty tab list still takes a gap, so + sits 4 pixels further from Forward, and
     nearer the end of the bar's left end, than designed.
+  - In a narrow window with many tabs, the strip runs out of room for them: below about 480px with
+    two tabs, 680px with six or 830px with nine, the last tabs run under + and Ask AI, which take
+    their clicks. XUNA's logo, added in 1.6.1, made that start about 100px sooner. Clipping the tab
+    list would stop it.
+  - XUNA's header keeps the 8px gap beside its hidden logo, which its measure of the room it needs
+    leaves out, so the room left to drag the window by in one row can be 56px rather than 64.
   - A strip whose page crashes twice within 10 seconds stays gone until the window reopens; View ▸
     Reload reloads XUNA's page, not the strip's.
   - If the + panel's page crashes while it is open, or the strip's while a tab is being renamed,
