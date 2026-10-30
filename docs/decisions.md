@@ -95,8 +95,14 @@ reason for it.
     dialogs, menus and drawers (in layers at the end of the page) and its toasts. While something
     covers the whole header, as a dialog's backdrop does, the header doesn't drag at all. The +
     panel opens below the bar for the same reason.
-  - The tabs come before XUNA's logo, not after it: the logo belongs to the tab's page (a
-    white-labelled workspace shows its own), the tabs to the window.
+  - XUNA's logo leads the bar, before Back, Forward and the tabs, in one row and in the strip
+    alike, and it is always XUNA's own: the app is XUNA's whatever the workspace, and the logo
+    stays put as the tabs change. XUNA's header hides its own logo meanwhile, which for a
+    white-labelled workspace is the workspace's (`src/one-row.css`); only in full screen with one
+    tab, where there is no bar, does XUNA's header show its logo as usual. The bar's logo is the
+    file XUNA's header uses (`src/xuna-logo.png`), 20px tall, white on black and black on white,
+    and a click on it goes home in the tab in front, as XUNA's does. (Until 1.6.1 the tabs came
+    before XUNA's header's logo, which followed the tab's workspace.)
   - Where one row can't work, the strip comes back:
     - on pages without XUNA's header, or if XUNA changes it past recognising;
     - on pages outside XUNA's app, such as the offline page or a payment provider's, which say

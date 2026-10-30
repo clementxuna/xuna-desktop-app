@@ -27,6 +27,13 @@
   -webkit-app-region: no-drag;
 }
 
+/* Wherever the strip shows, in one row or above the page, it shows XUNA's own logo before the tabs, so
+   XUNA's header hides its logo, which a white-labelled workspace replaces with its own. The preload
+   marks <html> with data-xuna-desktop-logo meanwhile. */
+:root[data-xuna-desktop-logo] [data-xuna-desktop-bar] a[aria-label="Go to home"] {
+  display: none !important;
+}
+
 /* The window isn't in front: the header's contents fade, as the strip's controls and macOS's own
    toolbars do. */
 :root[data-xuna-desktop-row][data-xuna-desktop-inactive] [data-xuna-desktop-bar] > * {

@@ -363,15 +363,17 @@ function addWorkspaceTabs(win, webPreferences) {
   };
 
   // Each tab's page applies the room made in XUNA's header for the strip, and the fade while the window
-  // is in the background (see watchHeader in src/preload.js). A page hears again only when that changes,
+  // is in the background (see watchHeader in src/preload.js). Wherever the strip shows, it shows XUNA's
+  // logo, and XUNA's header hides its own (src/one-row.css). A page hears again only when that changes,
   // or once it has loaded afresh.
   const sendRows = () => {
     const row = bar?.mode === 'one-row' ? { inset: bar.inset, inactive: !win.isFocused() } : null;
-    const word = JSON.stringify(row);
+    const message = { ...row, logo: Boolean(bar?.strip) };
+    const word = JSON.stringify(message);
     for (const { page } of views.values()) {
       if (page.isDestroyed() || rowsSent.get(page) === word) continue;
       rowsSent.set(page, word);
-      page.send('xuna:title-bar-row', row);
+      page.send('xuna:title-bar-row', message);
     }
   };
 
@@ -580,6 +582,13 @@ function addWorkspaceTabs(win, webPreferences) {
       page.send('xuna:ask-ai-toggle');
       page.focus();
     },
+    // The strip's XUNA logo: XUNA's home in the tab in front, as XUNA's own logo link goes there.
+    home: () => {
+      const page = pageOf(state.active);
+      if (!page) return;
+      page.send('xuna:go-home');
+      page.focus();
+    },
     // What a tab's page says about XUNA's header (see watchHeader in src/preload.js).
     setHeader: (id, report) => {
       headers.set(id, headerReport(report));
@@ -669,6 +678,7 @@ function addWorkspaceTabs(win, webPreferences) {
     else if (request.type === 'rename') tabs.rename(request.id, request.name);
     else if (request.type === 'editing') tabs.editing(request.active === true);
     else if (request.type === 'ask-ai') tabs.askAi();
+    else if (request.type === 'home') tabs.home();
     else if (request.type === 'back') tabs.back();
     else if (request.type === 'forward') tabs.forward();
     else if (request.type === 'measure') tabs.measure(request.widths);

@@ -19,10 +19,10 @@ function lightsZone({ lights, mode }) {
 
 // The bar's left end in one row, which the main process needs before it can choose one row (see
 // clusterReport in src/title-bar.js): its width with the tabs at their full width (tabNaturals, as
-// measured), and with each at its narrowest. history and add: the widths of Back and Forward together,
-// and of +. With one tab open the strip shows no tabs.
-function clusterWidths({ lights, history, add, tabNaturals }) {
-  const fixed = lightsZone({ lights, mode: 'one-row' }) + history + GAP + add + END_PADDING;
+// measured), and with each at its narrowest. logo, history and add: the widths of XUNA's logo, of Back
+// and Forward together, and of +. With one tab open the strip shows no tabs.
+function clusterWidths({ lights, logo, history, add, tabNaturals }) {
+  const fixed = lightsZone({ lights, mode: 'one-row' }) + logo + GAP + history + GAP + add + END_PADDING;
   if (tabNaturals.length < 2) return { natural: Math.ceil(fixed), minimum: Math.ceil(fixed) };
   const gaps = TAB_GAP * (tabNaturals.length - 1) + GAP;
   const full = tabNaturals.reduce((sum, width) => sum + Math.max(width, TAB_MIN_WIDTH), 0);

@@ -1,8 +1,9 @@
 'use strict';
 
 // Draws the Mac title strip (src/title-strip.html) from what the main process sends (see
-// addWorkspaceTabs in src/main.js), and passes its clicks back through src/title-strip-preload.js: Back
-// and Forward, the workspace tabs, the + button and, in the strip, Ask AI. With one tab open no tabs show;
+// addWorkspaceTabs in src/main.js), and passes its clicks back through src/title-strip-preload.js: XUNA's
+// logo, which goes home in the tab in front, Back and Forward, the workspace tabs, the + button and, in
+// the strip, Ask AI. With one tab open no tabs show;
 // + opens a menu of the account's workspaces, below it. Clicking a tab shows it, double-clicking renames
 // it, right-clicking opens its menu and dragging moves it. Ask AI presses XUNA's own in the tab in front,
 // and is drawn as XUNA draws it.
@@ -11,6 +12,7 @@ const bridge = window.workspaceTabs;
 const layout = window.titleStripLayout;
 const root = document.documentElement;
 const list = document.querySelector('.tabs');
+const homeButton = document.querySelector('.home');
 const history = document.querySelector('.history');
 const backButton = document.querySelector('.back');
 const forwardButton = document.querySelector('.forward');
@@ -44,6 +46,8 @@ bridge.onRename(startRename);
 bridge.onPick(pick); // ⌘T
 addButton.addEventListener('click', pick);
 askButton.addEventListener('click', () => bridge.askAi());
+homeButton.addEventListener('click', () => bridge.home());
+homeButton.querySelector('img').addEventListener('load', measure); // the logo's width is known once it has loaded
 backButton.addEventListener('click', () => bridge.back());
 forwardButton.addEventListener('click', () => bridge.forward());
 document.fonts?.addEventListener('loadingdone', measure); // Inter arriving changes the tabs' widths
@@ -105,6 +109,7 @@ function measure() {
   const tabNaturals = [...measurer.children].map((item) => item.getBoundingClientRect().width);
   const widths = layout.clusterWidths({
     lights: current.bar?.lights !== false,
+    logo: homeButton.getBoundingClientRect().width,
     history: history.getBoundingClientRect().width,
     add: addButton.getBoundingClientRect().width,
     tabNaturals,

@@ -2,17 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'self'">
   <title>XUNA AI</title>
   <!-- The bar along the top of a Mac window, behind macOS's three buttons, drawn by src/title-strip.js
        in a view of its own above the XUNA pages (see addWorkspaceTabs in src/main.js). It drags the
        window, as macOS's own title bar would; its buttons take clicks instead.
 
        It has two modes (macWindowLayout in src/title-bar.js). As the strip, it runs the window's width
-       above the XUNA page, 40px tall (MAC_TITLE_STRIP_HEIGHT), with Back and Forward after the three
-       buttons and the workspace tabs, + and Ask AI at its right end. In one row, XUNA's own header is
-       the title bar and this view covers only its left end, at the header's height and in its colours:
-       the three buttons, Back and Forward, the tabs and +, with XUNA's header carrying on from there.
+       above the XUNA page, 40px tall (MAC_TITLE_STRIP_HEIGHT), with XUNA's logo, Back and Forward after
+       the three buttons and the workspace tabs, + and Ask AI at its right end. In one row, XUNA's own
+       header is the title bar and this view covers only its left end, at the header's height and in its
+       colours: the three buttons, XUNA's logo, Back and Forward, the tabs and +, with XUNA's header
+       carrying on from there. The logo is always XUNA's, whatever the workspace, and always before the
+       tabs; XUNA's header hides its own meanwhile (src/one-row.css).
        The main process sets the height and colours; until then it lets the window's colour through.
        Its type is XUNA's Inter, from where app.xuna.ai gets it; offline, the system font stands in.
 
@@ -51,9 +53,13 @@
     }
     html, body { margin: 0; background: transparent; }
     .strip { position: fixed; top: 0; left: 0; right: 0; height: var(--bar-height); app-region: drag; -webkit-app-region: drag; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 var(--lights); box-sizing: border-box; background: var(--bar-background); box-shadow: inset 0 -1px var(--bar-border); font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: var(--text); user-select: none; }
+    /* XUNA's logo, as XUNA's header draws it: its white wordmark, 20px tall, black on the light bar. */
+    .home { display: grid; flex: none; place-items: center; height: 28px; padding: 0 8px 0 4px; border-radius: 6px; }
+    .home img { display: block; height: 20px; width: auto; }
+    :root:not([data-theme="dark"]) .home img { filter: invert(1); }
     .history { display: flex; flex: none; gap: 2px; margin-inline-end: auto; }
     .tabs { display: flex; gap: 2px; min-width: 0; }
-    .tab, .add, .ask-ai, .history button { app-region: no-drag; -webkit-app-region: no-drag; }
+    .home, .tab, .add, .ask-ai, .history button { app-region: no-drag; -webkit-app-region: no-drag; }
     .tab { display: flex; align-items: center; flex: 0 1 auto; min-width: 48px; max-width: 176px; height: 28px; border-radius: 6px; color: var(--muted); transition: transform 150ms ease; }
     .tab:hover { background: var(--hover); color: var(--text); }
     .tab.active { background: var(--selected); color: var(--text); }
@@ -134,6 +140,9 @@
 </head>
 <body>
   <div class="strip">
+    <button class="home" type="button" aria-label="Go to home" title="Home">
+      <img src="xuna-logo.png" alt="XUNA" draggable="false">
+    </button>
     <div class="history">
       <button class="back" type="button" aria-label="Back" disabled>
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2.5 4 6l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>

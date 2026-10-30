@@ -249,10 +249,15 @@ const oneRowRules = () => {
 };
 const oneRowRule = (selector) => oneRowRules().find(([selectors]) => selectors.includes(selector))?.[1] ?? '';
 
-test("the CSS put in XUNA's page does nothing until the main process turns one row on", () => {
+test("the CSS put in XUNA's page does nothing until the main process turns one row, or the bar's logo, on", () => {
   const selectors = oneRowRules().flatMap(([list]) => list);
   assert.ok(selectors.length > 0);
-  for (const selector of selectors) assert.match(selector, /^:root\[data-xuna-desktop-row\]/);
+  for (const selector of selectors) assert.match(selector, /^:root\[data-xuna-desktop-(row|logo)\]/);
+});
+
+test("while the bar shows XUNA's logo, XUNA's header hides its own, a white-labelled workspace's included", () => {
+  const rule = oneRowRule(':root[data-xuna-desktop-logo] [data-xuna-desktop-bar] a[aria-label="Go to home"]');
+  assert.match(rule, /display:\s*none\s*!important/);
 });
 
 test("in one row XUNA's header moves over by the strip's width, its box with it, and its empty space drags the window", () => {

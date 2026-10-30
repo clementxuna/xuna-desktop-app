@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('workspaceTabs', {
   editing: (active) => ask({ type: 'editing', active }),
   // Ask AI: XUNA's own, pressed in the tab in front.
   askAi: () => ask({ type: 'ask-ai' }),
+  // XUNA's logo: XUNA's home, in the tab in front.
+  home: () => ask({ type: 'home' }),
   // Back and Forward, in the tab in front.
   back: () => ask({ type: 'back' }),
   forward: () => ask({ type: 'forward' }),

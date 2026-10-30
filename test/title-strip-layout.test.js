@@ -10,17 +10,17 @@ test("the strip's controls start clear of macOS's three buttons, which sit furth
   assert.equal(lightsZone({ lights: false, mode: 'one-row' }), 8);
 });
 
-test("with one tab the bar's left end holds Back, Forward and + only", () => {
-  // 92 clear of the three buttons, Back and Forward's 58, a 4px gap, +'s 28 and 8 at the end
-  assert.deepEqual(clusterWidths({ lights: true, history: 58, add: 28, tabNaturals: [] }), { natural: 190, minimum: 190 });
+test("with one tab the bar's left end holds XUNA's logo, Back, Forward and + only", () => {
+  // 92 clear of the three buttons, the logo's 96, a 4px gap, Back and Forward's 58, 4, +'s 28 and 8 at the end
+  assert.deepEqual(clusterWidths({ lights: true, logo: 96, history: 58, add: 28, tabNaturals: [] }), { natural: 290, minimum: 290 });
 });
 
 test("with tabs, the bar's left end is as wide as they are at full width, or with each at its narrowest, 48px", () => {
-  // 190, the tabs, 2px between them and 4 before +
-  assert.deepEqual(clusterWidths({ lights: true, history: 58, add: 28, tabNaturals: [120, 90.5, 176] }), { natural: 585, minimum: 342 });
-  assert.deepEqual(clusterWidths({ lights: false, history: 58, add: 28, tabNaturals: [100, 100] }), { natural: 312, minimum: 208 });
+  // 290, the tabs, 2px between them and 4 before +
+  assert.deepEqual(clusterWidths({ lights: true, logo: 96, history: 58, add: 28, tabNaturals: [120, 90.5, 176] }), { natural: 685, minimum: 442 });
+  assert.deepEqual(clusterWidths({ lights: false, logo: 96, history: 58, add: 28, tabNaturals: [100, 100] }), { natural: 412, minimum: 308 });
   // a tab measured under 48 still takes 48
-  assert.deepEqual(clusterWidths({ lights: true, history: 58, add: 28, tabNaturals: [30, 30] }), { natural: 292, minimum: 292 });
+  assert.deepEqual(clusterWidths({ lights: true, logo: 96, history: 58, add: 28, tabNaturals: [30, 30] }), { natural: 392, minimum: 392 });
 });
 
 test('a tab dragged along the strip lands after every other tab whose middle it has passed', () => {

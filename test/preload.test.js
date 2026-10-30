@@ -501,6 +501,25 @@ test('the room the main process makes for the strip is applied to the page, kept
   t.mock.timers.tick(250);
 });
 
+test("while the bar shows XUNA's logo, the page is marked so XUNA's header hides its own, in one row and above the page alike", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page: xunaPage() });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:title-bar-row', { inset: 184, inactive: false, logo: true });
+  assert.ok(run.root.attributes.has('data-xuna-desktop-logo'));
+  run.fromMain('xuna:title-bar-row', { logo: true }); // the strip, above the page
+  assert.ok(run.root.attributes.has('data-xuna-desktop-logo'));
+  assert.ok(!run.root.attributes.has('data-xuna-desktop-row'));
+  run.root.attributes.clear(); // XUNA's own code resets <html>'s attributes
+  run.mutate();
+  t.mock.timers.tick(250);
+  assert.ok(run.root.attributes.has('data-xuna-desktop-logo'));
+  run.fromMain('xuna:title-bar-row', { logo: false }); // no bar at all: full screen with one tab
+  assert.ok(!run.root.attributes.has('data-xuna-desktop-logo'));
+  t.mock.timers.tick(250);
+});
+
 test('a pop-up offers no title bar', (t) => {
   const popup = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }, 'ws-tab', false), page: xunaPage() });
   t.after(popup.restore);

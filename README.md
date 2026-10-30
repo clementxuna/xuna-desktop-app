@@ -27,8 +27,9 @@ build from the same code.
   them. [docs/push-notifications.md](docs/push-notifications.md) covers what XUNA's servers
   need to do.
 - On Mac it behaves like a Mac app: closing the window keeps XUNA AI in the Dock, clicking
-  the Dock icon opens it again, and it has the usual app and Window menus. Back and Forward sit
-  after the three buttons. In the strip, Ask AI at its right end opens XUNA's assistant in the tab
+  the Dock icon opens it again, and it has the usual app and Window menus. XUNA's logo (always
+  XUNA's own, whatever the workspace; a click on it goes home), Back and Forward sit after the
+  three buttons, before the tabs. In the strip, Ask AI at its right end opens XUNA's assistant in the tab
   in front, as XUNA's own button does; in one row XUNA's own Ask AI is in the bar. The bar fades
   while the window is in the background.
 - On Mac, several workspaces can be open at once, as tabs in the title bar. The + button (⌘T) opens a panel drawn like XUNA's own workspace picker: a search

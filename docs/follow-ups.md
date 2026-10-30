@@ -97,6 +97,8 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
   - Back and Forward; clicking a tab to show it, double-clicking it to rename it (and Rename Tab…
     from its right-click menu leaving the keyboard in the name field), dragging it to a new place,
     and its right-click menu.
+  - XUNA's logo leading the bar in one row and in the strip, in both themes, never a workspace's
+    own, with XUNA's header showing no second logo, and a click on it going home.
   - To see the drag areas Electron hit-tests, run `ELECTRON_DEBUG_DRAGGABLE_REGIONS=1 npm start`
     (development runs only). In a Windows run it hung the main process as the + panel opened
     (Electron 44.9.3), so open the panel without it.
@@ -140,8 +142,8 @@ None of these is visible to users today.
   - Under a dialog's backdrop a faint seam can show where the bar's left end meets XUNA's header.
   - For a frame or two after the bar changes from the strip to one row, the strip's old drag area
     can still drag the window from XUNA's header controls under it, until the strip redraws.
-  - With one tab, + sits 4 pixels nearer XUNA's logo than designed: the empty tab list still takes
-    a gap.
+  - With one tab the empty tab list still takes a gap, so + sits 4 pixels further from Forward, and
+    nearer the end of the bar's left end, than designed.
   - A strip whose page crashes twice within 10 seconds stays gone until the window reopens; View ▸
     Reload reloads XUNA's page, not the strip's.
   - If the + panel's page crashes while it is open, or the strip's while a tab is being renamed,

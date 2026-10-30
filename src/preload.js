@@ -48,6 +48,7 @@ function throttled(look) {
 function watchHeader() {
   let header = null;
   let row = null; // the main process's word: { inset, inactive } in one row, null otherwise
+  let logo = false; // the bar shows XUNA's logo, so XUNA's header hides its own (src/one-row.css)
   let covered = false;
   let loaded = false; // XUNA draws its header after the page starts, so until it has loaded no header isn't news
   let last = '';
@@ -60,7 +61,7 @@ function watchHeader() {
     }
     const state = header ? describeHeader(header) : null;
     covered = Boolean(state?.cover);
-    applyRow(row, covered); // each time, in case XUNA's own code took it away
+    applyRow(row, covered, logo); // each time, in case XUNA's own code took it away
     if (!state && !loaded && !last) return;
     const serialized = JSON.stringify(state);
     if (serialized === last) return;
@@ -80,9 +81,12 @@ function watchHeader() {
   document.addEventListener('load', soon, true); // a workspace's logo arriving changes the room the header needs
   ipcRenderer.on('xuna:title-bar-row', (_event, next) => {
     row = next && Number.isFinite(next.inset) ? { inset: next.inset, inactive: next.inactive === true } : null;
-    applyRow(row, covered);
+    logo = next?.logo === true;
+    applyRow(row, covered, logo);
     soon();
   });
+  // The bar's XUNA logo goes home, as XUNA's own logo link does, which is hidden meanwhile.
+  ipcRenderer.on('xuna:go-home', () => document.querySelector('a[aria-label="Go to home"]')?.click());
 }
 
 // XUNA's header: the one holding its home link, along the top of the page and across it, from its left
@@ -139,7 +143,7 @@ function coverOf(header, box) {
 // The main process's row, on <html>: the room made at the header's start, the fade, and whether something
 // covers the header (then it doesn't drag the window). Only what differs is written, since each write is
 // a change the page's observers see.
-function applyRow(row, covered) {
+function applyRow(row, covered, logo) {
   const root = document.documentElement;
   if (!root) return;
   const toggle = (name, on) => {
@@ -147,6 +151,7 @@ function applyRow(row, covered) {
   };
   const inset = row ? `${row.inset}px` : '';
   toggle('data-xuna-desktop-row', Boolean(row));
+  toggle('data-xuna-desktop-logo', logo);
   if (root.style.getPropertyValue('--xuna-desktop-row-inset') !== inset) {
     if (row) root.style.setProperty('--xuna-desktop-row-inset', inset);
     else root.style.removeProperty('--xuna-desktop-row-inset');
