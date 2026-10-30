@@ -4,9 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, Menu, Notification, WebContentsView, dialog, ipcMain, nativeTheme, powerMonitor, pushNotifications, screen, session, shell, webContents } = require('electron');
 const config = require('./config');
-const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('./policy');
+const { createPolicy, isSafeExternalUrl, chromeUserAgent, isFromOwnPage } = require('./policy');
 const { buildAppMenu, attachContextMenu, tabMenuTemplate } = require('./menus');
 const { createUpdates } = require('./updates');
+const { reloadOnCrash } = require('./reload-on-crash');
 const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macWindowLayout, headerReport, clusterReport, askAiState } = require('./title-bar');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, moveTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
@@ -294,14 +295,7 @@ function showXuna(contents) {
     const retryUrl = policy.isTrustedPage(url) ? url : APP_URL;
     contents.loadFile(path.join(__dirname, 'offline.html'), { query: { url: retryUrl } }).catch(() => {});
   });
-
-  let lastCrash = 0;
-  contents.on('render-process-gone', (_event, details) => {
-    if (details.reason === 'clean-exit' || Date.now() - lastCrash < 10_000) return; // don't loop on a page that keeps crashing
-    lastCrash = Date.now();
-    contents.reload();
-  });
-
+  reloadOnCrash(contents);
   contents.loadURL(APP_URL).catch(() => {}); // failures are handled by did-fail-load
 }
 
@@ -330,13 +324,16 @@ function addWorkspaceTabs(win, webPreferences) {
   let lightsAt = MAC_TRAFFIC_LIGHTS; // where the three buttons are
   const rowsSent = new WeakMap(); // XUNA page → what it was last told about the room in its header (see sendRows)
 
-  // The title strip, in a view kept above the tabs' pages. Its page talks only to this window's tabs.
+  // The title strip, in a view kept above the tabs' pages. Its page talks only to this window's tabs, and
+  // loads again if it crashes.
   const strip = new WebContentsView({
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, preload: path.join(__dirname, 'title-strip-preload.js') },
   });
   strip.setBackgroundColor('#00000000'); // the window's colour shows through until the strip is told the bar's
   win.contentView.addChildView(strip);
   const stripPage = strip.webContents;
+  let stripUrl = null; // the strip page's address once it has loaded: only that page is heard (see isFromOwnPage)
+  reloadOnCrash(stripPage);
 
   const pageOf = (id) => {
     const entry = views.get(id);
@@ -664,8 +661,8 @@ function addWorkspaceTabs(win, webPreferences) {
   workspaceTabs.set(win, tabs);
 
   // What the strip's buttons ask for (src/title-strip.js). Only this window's own strip is heard.
-  stripPage.ipc.on('xuna:workspace-tab-request', (_event, request) => {
-    if (typeof request?.type !== 'string') return;
+  stripPage.ipc.on('xuna:workspace-tab-request', (event, request) => {
+    if (!isFromOwnPage(event.senderFrame, stripUrl) || typeof request?.type !== 'string') return;
     if (request.type === 'select') tabs.select(request.id);
     else if (request.type === 'add') tabs.pick(anchorOf(request.anchor));
     else if (request.type === 'close') tabs.close(request.id);
@@ -697,7 +694,10 @@ function addWorkspaceTabs(win, webPreferences) {
     sendToStrip();
   });
   win.on('page-title-updated', (event) => event.preventDefault());
-  stripPage.on('did-finish-load', sendToStrip);
+  stripPage.on('did-finish-load', () => {
+    stripUrl ??= stripPage.getURL();
+    sendToStrip();
+  });
   win.once('closed', () => {
     if (!stripPage.isDestroyed()) stripPage.close(); // on Mac the app stays open after its window closes
   });

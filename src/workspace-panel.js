@@ -4,7 +4,8 @@
 // over the XUNA page, below the + button, drawn as XUNA's own workspace picker is. It closes when a
 // workspace is picked, on Escape, and when anything else is clicked, which takes the focus from it.
 // Its page talks only to this window's panel, through src/workspace-picker-panel-preload.js; a
-// workspace it names is opened only if the panel offered it.
+// workspace it names is opened only if the panel offered it. If its page crashes, the panel closes, and
+// the next + makes it afresh.
 
 const path = require('node:path');
 const { WebContentsView } = require('electron');
@@ -45,9 +46,10 @@ function createWorkspacePanel(win, { onChoose, onClosed, barBottom = () => 0 }) 
   };
 
   const create = () => {
-    view = new WebContentsView({
+    const current = new WebContentsView({
       webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, preload: path.join(__dirname, 'workspace-picker-panel-preload.js') },
     });
+    view = current;
     view.setBackgroundColor('#00000000'); // clear round the panel, for its shadow
     view.setVisible(false);
     const page = view.webContents;
@@ -71,6 +73,14 @@ function createWorkspacePanel(win, { onChoose, onClosed, barBottom = () => 0 }) 
     page.once('did-finish-load', () => {
       ready = true;
       show(true);
+    });
+    page.on('render-process-gone', (_event, details) => {
+      if (details.reason === 'clean-exit' || view !== current) return;
+      close(false);
+      view = null;
+      ready = false;
+      if (!win.isDestroyed()) win.contentView.removeChildView(current);
+      page.close();
     });
     page.loadFile(path.join(__dirname, 'workspace-picker-panel.html')).catch(() => {});
     // The page goes with its window: on Mac the app stays open after its window closes.

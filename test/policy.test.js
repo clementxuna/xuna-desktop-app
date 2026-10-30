@@ -2,7 +2,7 @@
 
 const { describe, test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createPolicy, isSafeExternalUrl, chromeUserAgent } = require('../src/policy');
+const { createPolicy, isSafeExternalUrl, chromeUserAgent, isFromOwnPage } = require('../src/policy');
 
 const policy = createPolicy({ appUrl: 'https://app.xuna.ai', trustedDomain: 'xuna.ai' });
 const FROM_APP = 'https://app.xuna.ai/settings/billing';
@@ -189,4 +189,22 @@ test('chromeUserAgent reads as desktop Chrome with a reduced version and no Elec
 test('chromeUserAgent reads as Chrome for Mac on macOS', () => {
   const ua = chromeUserAgent('152.0.7977.78', 'darwin');
   assert.equal(ua, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36');
+});
+
+describe('isFromOwnPage', () => {
+  const STRIP = 'file:///Applications/XUNA%20AI.app/Contents/Resources/app.asar/src/title-strip.html';
+
+  test("hears the app's own page, from its main frame, at the address it loaded at", () => {
+    assert.equal(isFromOwnPage({ url: STRIP, parent: null }, STRIP), true);
+  });
+
+  test('ignores a page that has taken its place, and a frame inside it', () => {
+    assert.equal(isFromOwnPage({ url: 'https://example.com/', parent: null }, STRIP), false);
+    assert.equal(isFromOwnPage({ url: STRIP, parent: { url: 'https://example.com/' } }, STRIP), false);
+  });
+
+  test('ignores a message whose frame has gone, or that comes before the page has loaded', () => {
+    assert.equal(isFromOwnPage(null, STRIP), false);
+    assert.equal(isFromOwnPage({ url: STRIP, parent: null }, null), false);
+  });
 });
