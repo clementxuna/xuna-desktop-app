@@ -141,3 +141,17 @@ test("the download page's links point at the newest release's installers", () =>
     assert.equal(redirect?.permanent, false, source); // a 307, so browsers never cache where it points
   }
 });
+
+test("the beta page's links point at the beta files", () => {
+  const site = JSON.parse(readRepoFile('vercel.json'));
+  const beta = `https://github.com/${build.publish[0].owner}/${build.publish[0].repo}/releases/download/beta-latest/`;
+  const expected = { '/beta/download/windows': 'XUNA-AI-Beta-Setup.exe', '/beta/download/mac': 'XUNA-AI-Beta.dmg' };
+  for (const [source, file] of Object.entries(expected)) {
+    const redirect = site.redirects?.find((entry) => entry.source === source);
+    assert.equal(redirect?.destination, beta + file, source);
+    assert.equal(redirect?.permanent, false, source);
+  }
+  const page = readRepoFile('site', 'beta', 'index.html');
+  for (const source of Object.keys(expected)) assert.ok(page.includes(`href="${source}"`), source);
+  assert.ok(readRepoFile('site', 'index.html').includes('href="/beta"'), 'the main page links to the beta page');
+});
