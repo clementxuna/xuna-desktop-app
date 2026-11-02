@@ -262,7 +262,7 @@ function createMainWindow() {
     ...bounds,
     minWidth: 400,
     minHeight: 500,
-    title: config.PRODUCT_NAME,
+    title: 'XUNA AI',
     backgroundColor: (USE_TABS && titleBar) || backgroundColor(),
     ...titleBarOptions(),
     ...(IS_MAC ? { titleBarStyle: 'hidden', trafficLightPosition: lights } : {}),
@@ -306,7 +306,7 @@ function showXuna(contents) {
     // -3 is an aborted load (a redirect or a superseded navigation), not a failure.
     if (!isMainFrame || errorCode === -3 || url.startsWith('file:')) return;
     const retryUrl = policy.isTrustedPage(url) ? url : APP_URL;
-    contents.loadFile(path.join(__dirname, 'offline.html'), { query: { url: retryUrl, name: config.PRODUCT_NAME } }).catch(() => {});
+    contents.loadFile(path.join(__dirname, 'offline.html'), { query: { url: retryUrl } }).catch(() => {});
   });
   reloadOnCrash(contents);
   contents.loadURL(APP_URL).catch(() => {}); // failures are handled by did-fail-load
@@ -459,7 +459,7 @@ function addWorkspaceTabs(win, webPreferences, remembered) {
     arrange();
     const page = pageOf(state.active);
     if (page) {
-      win.setTitle(page.getTitle() || config.PRODUCT_NAME);
+      win.setTitle(page.getTitle() || 'XUNA AI');
       const color = pageColors.get(page);
       if (color) setTitleBarColor(color);
     }
@@ -553,7 +553,7 @@ function addWorkspaceTabs(win, webPreferences, remembered) {
       if (workspaceId && !openTabs.has(workspaceId)) openTabs.set(workspaceId, tab.id);
     }
     const items = tabsTurnedOff
-      ? [{ kind: 'note', label: `Workspace tabs are off. An update to ${config.PRODUCT_NAME} will turn them back on.` }]
+      ? [{ kind: 'note', label: 'Workspace tabs are off. An update to XUNA AI will turn them back on.' }]
       : pickerItems({ workspaces: workspaceList, openTabs, canOpenMore: state.tabs.length < MAX_TABS });
     const modifier = IS_MAC ? '⌘' : 'Ctrl+';
     return { items: markOpenTabs(items, { tabOrder: state.tabs.map((tab) => tab.id), frontTabId: state.active, modifier }), dark: titleBar === config.BACKGROUND.dark };
@@ -893,7 +893,7 @@ function turnOffTabs() {
   showMessage({
     type: 'warning',
     message: 'Workspace tabs are turned off',
-    detail: `XUNA has changed how it keeps track of your workspace, so ${config.PRODUCT_NAME} can no longer keep your tabs apart. Your other tabs will close, so nothing you do is saved to the wrong workspace. An update to ${config.PRODUCT_NAME} will turn tabs back on.`,
+    detail: 'XUNA has changed how it keeps track of your workspace, so XUNA AI can no longer keep your tabs apart. Your other tabs will close, so nothing you do is saved to the wrong workspace. An update to XUNA AI will turn tabs back on.',
     buttons: ['Close Other Tabs'],
     noLink: true,
   }).then(() => tabs.closeOthers());
@@ -931,7 +931,6 @@ function startAutoUpdates() {
   updates = createUpdates({
     updater: autoUpdater,
     version: app.getVersion(),
-    appName: config.PRODUCT_NAME,
     platform: process.platform,
     checkEvery: config.UPDATE_CHECK_INTERVAL_MS,
     remindAfter: config.UPDATE_REMIND_AFTER_MS,
@@ -962,7 +961,7 @@ function startAutoUpdates() {
 // Check for Updates… in the menu bar.
 function checkForUpdates() {
   if (updates) updates.check({ asked: true });
-  else showMessage({ type: 'info', message: 'Updates are off in development runs', detail: `Installed copies of ${config.PRODUCT_NAME} check for updates.` });
+  else showMessage({ type: 'info', message: 'Updates are off in development runs', detail: 'Installed copies of XUNA AI check for updates.' });
 }
 
 // A message box over the window in front, or over the main window while XUNA isn't in front.

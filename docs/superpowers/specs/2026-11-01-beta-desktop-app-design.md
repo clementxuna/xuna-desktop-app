@@ -27,8 +27,10 @@ and the Windows download.
 ## Non-goals
 
 - No change to the production app and no production release.
-- No visible beta marker in the title bar: the user asked for the exact design. The icon and the
-  app's name tell the two apps apart.
+- No beta wording or anything else different in the shell or the platform (the user's decision,
+  2026-11-01). The BETA pill on the app icon is the only beta styling. Dialogs, menus, the title bar
+  and the offline page keep production's words. The app's name in the Dock, the Start menu and the
+  install folder stays XUNA AI Beta, because that is what lets the two apps install side by side.
 - No Mac push notifications on beta (see "Mac signing").
 - No one-row bar on Windows, and no Windows code signing. Both match production as it is.
 - No switch inside the production app to move to beta.
@@ -50,6 +52,7 @@ Decided by the user:
 - Everything lives in this repo, clementxuna/xuna-desktop-app.
 - Beta wraps https://beta.xuna.ai.
 - The title bar starts as an exact copy of production's.
+- Beta styling goes on the app icon only: no other beta text or difference in the platform or shell.
 - Mac and Windows, with the same setup as production.
 - The download is a button or page reached from the foot of the download site.
 - "Never push to main or make any changes to the other repo that the web app is currently on."
@@ -136,11 +139,11 @@ exactly as today and a merge into `main` changes nothing.
 Small, and all default to production:
 
 - `src/config.js`: as above.
-- `src/main.js`, `src/menus.js`, `src/updates.js`, `src/offline.html`: the name shown to people
-  comes from config rather than the literal "XUNA AI". Someone with both apps must be able to
-  tell which one is asking to restart.
 - `src/main.js`: skip push registration on beta, and name the development profile after the
   product so a beta development run gets `XUNA AI Beta Dev`.
+
+Neither shows anything to people. Dialogs, menus and the offline page keep saying XUNA AI, so with
+both apps open their update prompts read alike. That is the user's decision.
 
 The title bar code is not touched: `title-bar.js`, `title-strip.*`, `one-row.css`, `preload.js`
 and the `workspace-*` files. That is what makes the design exact. `policy.js` needs no change:

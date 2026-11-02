@@ -15,7 +15,8 @@
 - Never push to `main`. Never push a `v*` tag. The only things pushed are the `beta` branch, `beta-v*` tags and the `beta-download-page` branch.
 - The web app's repo is read only: no push, no fetch, no edits. No Vercel tools or CLI.
 - On `beta`, `package.json` keeps `main`'s identity and version, and `test/package.test.js` stays unchanged. Never run `npm version` on `beta`.
-- Not touched: `src/title-bar.js`, `src/title-strip*`, `src/one-row.css`, `src/preload.js`, `src/policy.js`, `src/workspace-*`.
+- Not touched: `src/title-bar.js`, `src/title-strip*`, `src/one-row.css`, `src/preload.js`, `src/policy.js`, `src/workspace-*`, `src/menus.js`, `src/updates.js`, `src/offline.html`.
+- Beta styling goes on the app icon only. No beta wording or anything else different in the platform or shell (the user's decision, 2026-11-01).
 - Beta's values: `appId` `ai.xuna.desktop.beta`, `productName` `XUNA AI Beta`, `name` `xuna-beta`, files `XUNA-AI-Beta-Setup.exe`, `XUNA-AI-Beta.dmg`, `XUNA-AI-Beta-mac.zip`, icons `build/icon-beta.png`, `build/icon-mac-beta.png`.
 - `name` must not start with `xuna-desktop` and must not be a prefix of it.
 - The rolling release's tag is `beta-latest`. It is created once by hand with `--prerelease --latest=false`. CI only runs `gh release upload`.
@@ -30,7 +31,7 @@
 2. A tag that isn't plain `x.y.z`, such as `beta-v1.0` or `beta-v1.0.0-rc.1`, must stop the build before anything is uploaded (test in Task 3).
 3. If `beta-latest` is ever deleted, CI must fail rather than create a release that could become "latest" (test in Task 4).
 4. Beta's notifications and taskbar grouping must belong to beta: `config.APP_ID` and the overlay's `appId` must agree, or Windows sends beta's toasts to production (test in Task 3).
-5. Someone with both apps open must read the right name in a restart prompt (test in Task 2).
+5. Merging `beta` into `main` must leave a production build's identity alone: with no channel in `package.json`, config answers production's values (test in Task 1) and `test/package.test.js` stays unchanged.
 
 ---
 
@@ -42,7 +43,7 @@ On `beta`:
 | --- | --- |
 | `electron-builder.beta.js` (new) | The only place beta's build identity lives |
 | `src/config.js` | Answers which app this is, at run time |
-| `src/main.js`, `src/menus.js`, `src/updates.js`, `src/offline.html` | Show the name from config; skip push on beta |
+| `src/main.js` | Skips push on beta; names the development profile after the app |
 | `build/icon-beta.png`, `build/icon-mac-beta.png` (new) | Production's icons with a BETA pill |
 | `.github/workflows/beta-release.yml` (new) | Windows build for `beta-v*` tags |
 | `.github/workflows/release.yml` | One new step: stop unless the tagged commit is on `main` |
@@ -123,65 +124,29 @@ git commit -m "Let config say whether this copy is production or beta"
 
 ---
 
-### Task 2: Show the app's own name, and skip push on beta
+### Task 2: Skip push on beta, and keep beta's development profile apart
+
+The user narrowed this task during the run: an earlier version put "XUNA AI Beta" in dialogs, menus and the offline page, and was undone. See the ledger's ruling and the commit "Keep the shell's words as production's". The final state is below.
 
 **Files:**
-- Modify: `src/main.js`, `src/menus.js`, `src/updates.js`, `src/offline.html`
-- Test: `test/updates.test.js`
+- Modify: `src/main.js`
 
 **Interfaces:**
 - Consumes: `config.PRODUCT_NAME`, `config.MAC_PUSH` from Task 1.
-- Produces: `createUpdates({ ..., appName = 'XUNA AI' })`, and the offline page reading an optional `name` query parameter.
 
-- [ ] **Step 1: Write the failing test in `test/updates.test.js`**
+- [ ] **Step 1: Make the two changes in `src/main.js`**
 
-```js
-test('the restart question names the app that is asking', async () => {
-  const updater = new FakeUpdater();
-  const ui = fakeUi();
-  createUpdates({ updater, ui, version: '1.0.0', platform: 'win32', checkEvery: HOURS, remindAfter: HOURS, recheckAfter: HOURS, appName: 'XUNA AI Beta' });
-  updater.emit('update-downloaded', { version: '1.0.1' });
-  await settle();
-  assert.equal(ui.questions[0].message, 'XUNA AI Beta 1.0.1 is ready to install');
-  assert.match(ui.questions[0].detail, /^Restart XUNA AI Beta to update now/);
-});
-```
+The development profile becomes `` `${config.PRODUCT_NAME} Dev` `` (the same folder as today in production). `registerForPush` also returns early when `!config.MAC_PUSH`.
 
-- [ ] **Step 2: Run it to verify it fails**
-
-Run: `node --test test/updates.test.js`
-Expected: FAIL, the message still says "XUNA AI 1.0.1".
-
-- [ ] **Step 3: Use `appName` in `src/updates.js`**
-
-Add the parameter with its default and use it in all five strings: the question's message and detail, the notification's body, and both `ui.tell` messages that name the app.
-
-- [ ] **Step 4: Use the name in `src/main.js` and `src/menus.js`**
-
-- `src/main.js`: `config.PRODUCT_NAME` replaces "XUNA AI" in the window title and its fallback, the tabs-off note in the panel, both sentences in the tabs-off dialog, and the development updates message. Pass `appName: config.PRODUCT_NAME` to `createUpdates`.
-- `src/main.js`: the development profile becomes `` `${config.PRODUCT_NAME} Dev` `` (same folder as today in production). `registerForPush` also returns early when `!config.MAC_PUSH`. `showXuna` passes `name: config.PRODUCT_NAME` in the offline page's query.
-- `src/menus.js`: require `./config`, and use `PRODUCT_NAME` in `showAbout` and the Windows Help item. `test/menus.test.js` keeps expecting "About XUNA AI".
-
-- [ ] **Step 5: Show the name in `src/offline.html`**
-
-When the `name` query parameter is present, set `document.title` and the heading with `textContent` ("Can't reach " plus the name). Without it the page stays as it is. The hard-coded fallback address is left alone: `showXuna` always passes `url`.
-
-- [ ] **Step 6: Run all tests**
+- [ ] **Step 2: Run all tests**
 
 Run: `npm test`
 Expected: all pass.
 
-- [ ] **Step 7: Check for leftovers**
+- [ ] **Step 3: Check that nothing visible changed**
 
-Run: `git grep -n "XUNA AI" -- src/main.js src/menus.js src/updates.js`
-Expected: only comments, and the `appName` default in `src/updates.js`.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add src test/updates.test.js
-git commit -m "Show the app's own name, and skip push registration on beta"
-```
+Run: `git diff --stat main -- src`
+Expected: only `src/config.js` and `src/main.js`.
 
 ---
 
@@ -317,7 +282,7 @@ Get-CimInstance -ClassName Win32_Process | Where-Object { $_.Path -and $_.Path.S
 
 - [ ] **Step 10: Check the offline page, then remove the test install**
 
-In a development run with `$env:XUNA_CHANNEL = 'beta'; $env:XUNA_APP_URL = 'http://127.0.0.1:9'`, read the heading over CDP. Expected: "Can't reach XUNA AI Beta". Then close beta, run `Uninstall XUNA AI Beta.exe /S`, delete `%APPDATA%\XUNA AI Beta`, and confirm production's `LastWriteTime` is unchanged.
+In a development run with `$env:XUNA_CHANNEL = 'beta'; $env:XUNA_APP_URL = 'http://127.0.0.1:9'`, read the page over CDP. Expected: its heading is production's "Can't reach XUNA AI", and its `url` query parameter is the address that failed, so Try again retries that address and not production. Then close beta, run `Uninstall XUNA AI Beta.exe /S`, delete `%APPDATA%\XUNA AI Beta`, and confirm production's `LastWriteTime` is unchanged.
 
 ---
 
@@ -484,7 +449,7 @@ git push origin beta-v1.0.0
 
 - [ ] **Step 1: Install from the real link**
 
-Tell the user first. Download `https://github.com/clementxuna/xuna-desktop-app/releases/download/beta-latest/XUNA-AI-Beta-Setup.exe` and run it. Ask the user to sign in with their beta account. Expected: XUNA opens signed in, the Windows bar follows XUNA's theme, and About says XUNA AI Beta 1.0.0.
+Tell the user first. Download `https://github.com/clementxuna/xuna-desktop-app/releases/download/beta-latest/XUNA-AI-Beta-Setup.exe` and run it. Ask the user to sign in with their beta account. Expected: XUNA opens signed in, the Windows bar follows XUNA's theme, and Help ▸ About shows version 1.0.0.
 
 - [ ] **Step 2: Check the one-row bar on real beta**
 
@@ -499,7 +464,7 @@ git push origin beta-v1.0.1
 
 - [ ] **Step 4: Watch the update arrive**
 
-Once `latest.yml` says 1.0.1, use Help ▸ Check for Updates… in the installed app. Expected: "XUNA AI Beta 1.0.1 is ready to install". Restart Now reopens the app, and the exe's version is 1.0.1. A full download is expected on this first update.
+Once `latest.yml` says 1.0.1, use Help ▸ Check for Updates… in the installed app. Expected: "XUNA AI 1.0.1 is ready to install". Restart Now reopens the app, and the exe's version is 1.0.1. A full download is expected on this first update.
 
 - [ ] **Step 5: Confirm production is untouched**
 
