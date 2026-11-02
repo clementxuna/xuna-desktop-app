@@ -181,6 +181,10 @@ Accepted consequences:
   publishing a newer one, as on production.
 - While a file is replaced, its link can 404 for about a minute. Upload the binaries first and the
   manifest last. An updater caught in that window fails and retries at its next check.
+- For about two minutes after a file is replaced, its fixed address can still serve the previous file
+  (measured on 2026-11-01). The updater's manifest request carries a `noCache` query, which gets the
+  new file at once, and every download is checked against the manifest's SHA-512, so a stale file is
+  refused and the update retries at the next check.
 - File names carry no version, so the first update after a fresh install downloads in full.
   electron-updater 6.8 then keeps a blockmap in its cache, so later updates download only the
   changes.

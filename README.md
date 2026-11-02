@@ -194,7 +194,8 @@ git push origin beta beta-v1.0.3
   ```
 
 - Older betas' files aren't kept. To undo a bad beta, release a newer one. While a file is replaced, its link can
-  404 for about a minute.
+  404 for about a minute, and for about two minutes after that the fixed links can still serve the previous file.
+  Updates aren't harmed: the updater checks every download's SHA-512, and tries again at its next check.
 - A fresh install downloads its first update in full, and only the changes after that.
 
 ### Move work between the apps
