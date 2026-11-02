@@ -12,8 +12,8 @@
 // gives both). No Electron imports, so it is unit-tested in test/updates.test.js.
 
 // recheckAfter: how long after a look coming back to XUNA looks again. schedule(run, wait): when to ask
-// again after Later (setTimeout; tests pass their own).
-function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter, recheckAfter, schedule = setTimeout }) {
+// again after Later (setTimeout; tests pass their own). appName: what the messages call this app.
+function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter, recheckAfter, schedule = setTimeout, appName = 'XUNA AI' }) {
   let ready = null; // the version downloaded and waiting to install
   let asking = false; // the restart question is on screen
   let answers = 0; // how often it has been answered: a reminder is for the latest Later only
@@ -32,8 +32,8 @@ function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter
     if (!ready || asking) return;
     asking = true;
     const choice = await ui.ask({
-      message: `XUNA AI ${ready} is ready to install`,
-      detail: `Restart XUNA AI to update now, or the update will install the next time you ${quitWord} it.`,
+      message: `${appName} ${ready} is ready to install`,
+      detail: `Restart ${appName} to update now, or the update will install the next time you ${quitWord} it.`,
       buttons: ['Restart Now', 'Later'],
     });
     asking = false;
@@ -55,7 +55,7 @@ function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter
       ui.showWindow();
       ask();
     };
-    ui.notify({ title: 'An update is ready', body: `Click to restart XUNA AI and update to version ${ready}.`, onClick });
+    ui.notify({ title: 'An update is ready', body: `Click to restart ${appName} and update to version ${ready}.`, onClick });
     ui.onNextFocus(ask);
   };
 
@@ -90,8 +90,8 @@ function createUpdates({ updater, ui, version, platform, checkEvery, remindAfter
       if (asked) ui.tell({ type: 'warning', message: 'Couldn’t download the update', detail: 'Check your internet connection and try again.' });
     });
     if (!asked) return;
-    if (!result?.isUpdateAvailable) ui.tell({ message: 'You’re up to date', detail: `XUNA AI ${version} is the newest version.` });
-    else if (!ready) ui.tell({ message: `Downloading XUNA AI ${result.updateInfo.version}…`, detail: 'You’ll be asked to restart once it has downloaded.' });
+    if (!result?.isUpdateAvailable) ui.tell({ message: 'You’re up to date', detail: `${appName} ${version} is the newest version.` });
+    else if (!ready) ui.tell({ message: `Downloading ${appName} ${result.updateInfo.version}…`, detail: 'You’ll be asked to restart once it has downloaded.' });
   };
 
   updater.on('update-downloaded', onDownloaded);

@@ -1,9 +1,10 @@
 'use strict';
 
 const { app, BrowserWindow, Menu, clipboard, dialog } = require('electron');
+const { PRODUCT_NAME } = require('./config');
 
 function showAbout() {
-  const options = { type: 'info', title: 'About XUNA AI', message: 'XUNA AI', detail: `Version ${app.getVersion()}` };
+  const options = { type: 'info', title: `About ${PRODUCT_NAME}`, message: PRODUCT_NAME, detail: `Version ${app.getVersion()}` };
   const owner = BrowserWindow.getFocusedWindow();
   if (owner) dialog.showMessageBox(owner, options);
   else dialog.showMessageBox(options);
@@ -96,7 +97,7 @@ function appMenuTemplate({ appContents, tabs = null, checkForUpdates, platform =
     },
     isMac
       ? macWindowMenu(tabs)
-      : { label: 'Help', submenu: [{ label: 'Check for Updates…', click: checkForUpdates }, { type: 'separator' }, { label: 'About XUNA AI', click: showAbout }] },
+      : { label: 'Help', submenu: [{ label: 'Check for Updates…', click: checkForUpdates }, { type: 'separator' }, { label: `About ${PRODUCT_NAME}`, click: showAbout }] },
   ];
 }
 

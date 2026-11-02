@@ -24,7 +24,13 @@
     <button id="retry" type="button" autofocus>Try again</button>
   </main>
   <script>
-    const requested = new URLSearchParams(location.search).get('url') || '';
+    const query = new URLSearchParams(location.search);
+    const requested = query.get('url') || '';
+    const name = query.get('name');
+    if (name) {
+      document.title = name;
+      document.querySelector('h1').textContent = `Can't reach ${name}`;
+    }
     const target = /^https?:\/\//.test(requested) ? requested : 'https://app.xuna.ai';
     const retry = () => { location.href = target; };
     document.getElementById('retry').addEventListener('click', retry);

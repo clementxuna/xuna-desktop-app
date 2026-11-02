@@ -39,7 +39,7 @@ const WINDOW_PAGE_PREFERENCES = { contextIsolation: true, sandbox: true, nodeInt
 const ONE_ROW_CSS = fs.readFileSync(path.join(__dirname, 'one-row.css'), 'utf8');
 
 // Development runs get their own profile, so they neither trip an installed copy's single-instance lock nor share its sign-in.
-if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), `${app.getName()} Dev`));
+if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), `${config.PRODUCT_NAME} Dev`));
 
 app.userAgentFallback = chromeUserAgent(process.versions.chrome, process.platform);
 if (IS_WINDOWS) app.setAppUserModelId(config.APP_ID);
@@ -112,9 +112,10 @@ if (!app.requestSingleInstanceLock()) {
 
 // Asks Apple for this Mac's device token. XUNA's servers send notifications to it through APNs, and macOS shows
 // them even when the app is closed. Only signed copies can register: they carry the push entitlement and the
-// provisioning profile that allows it (see build/entitlements.mac.plist). Development runs and Windows skip this.
+// provisioning profile that allows it (see build/entitlements.mac.plist). Development runs, Windows and XUNA AI
+// Beta, which has neither, skip this.
 function registerForPush() {
-  if (!IS_MAC || !app.isPackaged) return;
+  if (!IS_MAC || !app.isPackaged || !config.MAC_PUSH) return;
   pushRegistration = pushNotifications
     .registerForAPNSNotifications()
     .then((token) => ({ platform: 'macos', token, topic: config.APP_ID, environment: 'production' }))
@@ -261,7 +262,7 @@ function createMainWindow() {
     ...bounds,
     minWidth: 400,
     minHeight: 500,
-    title: 'XUNA AI',
+    title: config.PRODUCT_NAME,
     backgroundColor: (USE_TABS && titleBar) || backgroundColor(),
     ...titleBarOptions(),
     ...(IS_MAC ? { titleBarStyle: 'hidden', trafficLightPosition: lights } : {}),
@@ -305,7 +306,7 @@ function showXuna(contents) {
     // -3 is an aborted load (a redirect or a superseded navigation), not a failure.
     if (!isMainFrame || errorCode === -3 || url.startsWith('file:')) return;
     const retryUrl = policy.isTrustedPage(url) ? url : APP_URL;
-    contents.loadFile(path.join(__dirname, 'offline.html'), { query: { url: retryUrl } }).catch(() => {});
+    contents.loadFile(path.join(__dirname, 'offline.html'), { query: { url: retryUrl, name: config.PRODUCT_NAME } }).catch(() => {});
   });
   reloadOnCrash(contents);
   contents.loadURL(APP_URL).catch(() => {}); // failures are handled by did-fail-load
@@ -458,7 +459,7 @@ function addWorkspaceTabs(win, webPreferences, remembered) {
     arrange();
     const page = pageOf(state.active);
     if (page) {
-      win.setTitle(page.getTitle() || 'XUNA AI');
+      win.setTitle(page.getTitle() || config.PRODUCT_NAME);
       const color = pageColors.get(page);
       if (color) setTitleBarColor(color);
     }
@@ -552,7 +553,7 @@ function addWorkspaceTabs(win, webPreferences, remembered) {
       if (workspaceId && !openTabs.has(workspaceId)) openTabs.set(workspaceId, tab.id);
     }
     const items = tabsTurnedOff
-      ? [{ kind: 'note', label: 'Workspace tabs are off. An update to XUNA AI will turn them back on.' }]
+      ? [{ kind: 'note', label: `Workspace tabs are off. An update to ${config.PRODUCT_NAME} will turn them back on.` }]
       : pickerItems({ workspaces: workspaceList, openTabs, canOpenMore: state.tabs.length < MAX_TABS });
     const modifier = IS_MAC ? '⌘' : 'Ctrl+';
     return { items: markOpenTabs(items, { tabOrder: state.tabs.map((tab) => tab.id), frontTabId: state.active, modifier }), dark: titleBar === config.BACKGROUND.dark };
@@ -892,7 +893,7 @@ function turnOffTabs() {
   showMessage({
     type: 'warning',
     message: 'Workspace tabs are turned off',
-    detail: 'XUNA has changed how it keeps track of your workspace, so XUNA AI can no longer keep your tabs apart. Your other tabs will close, so nothing you do is saved to the wrong workspace. An update to XUNA AI will turn tabs back on.',
+    detail: `XUNA has changed how it keeps track of your workspace, so ${config.PRODUCT_NAME} can no longer keep your tabs apart. Your other tabs will close, so nothing you do is saved to the wrong workspace. An update to ${config.PRODUCT_NAME} will turn tabs back on.`,
     buttons: ['Close Other Tabs'],
     noLink: true,
   }).then(() => tabs.closeOthers());
@@ -930,6 +931,7 @@ function startAutoUpdates() {
   updates = createUpdates({
     updater: autoUpdater,
     version: app.getVersion(),
+    appName: config.PRODUCT_NAME,
     platform: process.platform,
     checkEvery: config.UPDATE_CHECK_INTERVAL_MS,
     remindAfter: config.UPDATE_REMIND_AFTER_MS,
@@ -960,7 +962,7 @@ function startAutoUpdates() {
 // Check for Updates… in the menu bar.
 function checkForUpdates() {
   if (updates) updates.check({ asked: true });
-  else showMessage({ type: 'info', message: 'Updates are off in development runs', detail: 'Installed copies of XUNA AI check for updates.' });
+  else showMessage({ type: 'info', message: 'Updates are off in development runs', detail: `Installed copies of ${config.PRODUCT_NAME} check for updates.` });
 }
 
 // A message box over the window in front, or over the main window while XUNA isn't in front.

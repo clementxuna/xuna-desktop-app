@@ -69,6 +69,16 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 const RESTART = 0;
 const LATER = 1;
 
+test('the restart question names the app that is asking', async () => {
+  const updater = new FakeUpdater();
+  const ui = fakeUi();
+  createUpdates({ updater, ui, version: '1.0.0', platform: 'win32', checkEvery: HOURS, remindAfter: HOURS, recheckAfter: HOURS, appName: 'XUNA AI Beta' });
+  updater.emit('update-downloaded', { version: '1.0.1' });
+  await settle();
+  assert.equal(ui.questions[0].message, 'XUNA AI Beta 1.0.1 is ready to install');
+  assert.match(ui.questions[0].detail, /^Restart XUNA AI Beta to update now/);
+});
+
 const REMIND_AFTER = 4 * HOURS;
 const RECHECK_AFTER = 5 * 60 * 1000;
 
