@@ -82,10 +82,12 @@ function fakeRoot() {
 }
 
 // seed: what the main process answers for this page (see xuna:workspace-memory in src/main.js).
+// titleBarPage: its answer to which window's title bar the page's header is (xuna:title-bar-page).
 // askButton: XUNA's header Ask AI button as the page has it, or null for a page without one.
 // page: a page with XUNA's header (see xunaPage), or null for one without. path: the page's address's path.
-function runPreload({ seed, shared = {}, failHook = false, askButton = null, page = null, path: pagePath = '/' } = {}) {
+function runPreload({ seed, titleBarPage, shared = {}, failHook = false, askButton = null, page = null, path: pagePath = '/' } = {}) {
   const sent = [];
+  const exposed = {};
   const ipcListeners = {};
   const observers = [];
   const documentListeners = {};
@@ -126,14 +128,16 @@ function runPreload({ seed, shared = {}, failHook = false, askButton = null, pag
   };
   const electron = {
     contextBridge: {
-      exposeInMainWorld() {},
+      exposeInMainWorld(name, api) {
+        exposed[name] = api;
+      },
       executeInMainWorld({ func, args }) {
         if (failHook) throw new Error('no main world');
         return func(...args);
       },
     },
     ipcRenderer: {
-      sendSync: (channel) => (channel === 'xuna:workspace-memory' ? seed : undefined),
+      sendSync: (channel) => (channel === 'xuna:workspace-memory' ? seed : channel === 'xuna:title-bar-page' ? titleBarPage : undefined),
       send: (channel, ...args) => sent.push([channel, ...args]),
       on: (channel, listener) => (ipcListeners[channel] ??= []).push(listener),
       invoke: async () => null,
@@ -159,7 +163,7 @@ function runPreload({ seed, shared = {}, failHook = false, askButton = null, pag
   const dispatch = (type, event) => (listeners[type] ?? []).forEach((listener) => listener(event));
   const fromMain = (channel, ...args) => (ipcListeners[channel] ?? []).forEach((listener) => listener({}, ...args));
   const mutate = () => observers.forEach((callback) => callback([]));
-  return { sent, localStorage, page: globalThis.window, root, fetched, dispatch, fromMain, mutate, restore };
+  return { sent, exposed, localStorage, page: globalThis.window, root, fetched, dispatch, fromMain, mutate, restore };
 }
 
 const tabSeed = (values, remembered = values?.[ACTIVE] ?? null, report = true) => ({ prefixes: PREFIXES, activeKey: ACTIVE, values, remembered, report });
@@ -678,4 +682,56 @@ test('a pop-up offers no title bar', (t) => {
   t.after(popup.restore);
   popup.dispatch('DOMContentLoaded');
   assert.deepEqual(headerReports(popup), []);
+});
+
+test('XUNA is told which window\'s title bar its header is, before its scripts run, and nothing anywhere else', (t) => {
+  for (const answer of ['mac', 'windows']) {
+    const run = runPreload({ seed: answer === 'mac' ? tabSeed({ [ACTIVE]: 'ws-tab' }) : null, titleBarPage: answer });
+    assert.equal(run.exposed.xunaDesktop.titleBar, answer);
+    assert.equal(typeof run.exposed.xunaDesktop.getPushRegistration, 'function');
+    run.restore();
+  }
+  const other = runPreload({ seed: null });
+  t.after(other.restore);
+  assert.equal(other.exposed.xunaDesktop.titleBar, null);
+});
+
+test("the Windows window's page offers XUNA's header for the title bar, though it keeps the shared storage", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const run = runPreload({ seed: null, titleBarPage: 'windows', page: xunaPage(), shared: { [ACTIVE]: 'ws-shared' } });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  assert.equal(headerReports(run).length, 1);
+  assert.equal(run.localStorage.getItem(ACTIVE), 'ws-shared');
+  assert.deepEqual(run.sent.filter(([channel]) => channel === 'xuna:ask-ai-state'), []); // no strip with an Ask AI of its own
+});
+
+test("XUNA's search field in its header counts for the least room it takes, not the width it has", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const page = xunaPage();
+  // The field, placed over the header's middle, 440px wide, and saying it can make do with 192.
+  const field = box('DIV', { left: 420, top: 14, width: 440, height: 36 }, { children: [box('BUTTON', { left: 420, top: 14, width: 440, height: 36 })] });
+  field.hasAttribute = (name) => name === 'data-xuna-desktop-flex';
+  field.getAttribute = (name) => (name === 'data-xuna-desktop-flex' ? '192' : null);
+  page.header.children.splice(1, 0, field);
+  const run = runPreload({ seed: tabSeed({ [ACTIVE]: 'ws-tab' }), page });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  // As without it (616), plus its 192: it isn't laid out in the row, so no gap comes with it.
+  assert.equal(headerReports(run)[0].minWidth, 616 + 192);
+});
+
+test("on Windows XUNA's header makes room at its end for Windows' buttons while it is the bar, and not otherwise", (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const run = runPreload({ seed: null, titleBarPage: 'windows', page: xunaPage() });
+  t.after(run.restore);
+  run.dispatch('DOMContentLoaded');
+  run.fromMain('xuna:title-bar-row', { inset: 0, caption: true });
+  assert.ok(run.root.attributes.has('data-xuna-desktop-row'));
+  assert.ok(run.root.attributes.has('data-xuna-desktop-caption'));
+  run.fromMain('xuna:title-bar-row', null); // the band above the page
+  assert.deepEqual([...run.root.attributes], []);
+  run.fromMain('xuna:title-bar-row', { inset: 184 }); // Mac, in one row
+  assert.ok(!run.root.attributes.has('data-xuna-desktop-caption'));
+  t.mock.timers.tick(250);
 });

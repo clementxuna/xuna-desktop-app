@@ -1,8 +1,8 @@
 'use strict';
 
 // Picks the window title bar colour from the theme the page reports (see src/preload.js), so the bar
-// matches the app beneath it: black in dark mode, white in light mode. No Electron imports, so it is
-// unit-tested in test/title-bar.test.js.
+// matches the app beneath it: black in dark mode, white in light mode, and works out where the bar and
+// XUNA's page go in a window. No Electron imports, so it is unit-tested in test/title-bar.test.js.
 
 const { BACKGROUND } = require('./config');
 
@@ -129,6 +129,27 @@ function macWindowLayout({ width, height, fullScreen, tabCount = 1, header = nul
   };
 }
 
+// On Windows the window hides Windows' own title bar too, and XUNA's header is the bar wherever it shows,
+// in one row, by the same rule as on Mac. The bar's left end holds nothing of the app's own, so XUNA's
+// header starts at the window's edge, and Windows' three buttons sit over its right end, where it makes
+// room for them (src/one-row.css). Elsewhere XUNA's page sits below a plain band as tall as Mac's strip,
+// which Windows' buttons sit in. Windows keeps its buttons in full screen, so full screen changes nothing.
+// barHeight is the height of what the buttons sit in: XUNA's header, or the band.
+const NO_CLUSTER = { natural: 0, minimum: 0 };
+
+function windowsWindowLayout({ width, height, header = null, zoom = 1 }) {
+  const { mode, page, barHeight } = macWindowLayout({ width, height, fullScreen: false, tabCount: 1, header, cluster: NO_CLUSTER, zoom });
+  return { mode, page, barHeight };
+}
+
+// Windows' three buttons over the bar: on nothing of their own, so XUNA's header or the band shows under
+// them, a dialog's backdrop over the header included, in XUNA's ink for the theme it shows.
+const CAPTION_SYMBOL = { light: '#0a0a0a', dark: '#fafafa' };
+
+function titleBarOverlay(color, height) {
+  return { color: '#00000000', symbolColor: color === BACKGROUND.dark ? CAPTION_SYMBOL.dark : CAPTION_SYMBOL.light, height: Math.max(1, Math.round(height)) };
+}
+
 // The + button's panel of workspaces (src/workspace-picker-panel.html), as wide as XUNA's own picker.
 // Its view keeps a transparent margin round the panel for the panel's shadow, and it sits 8px below the
 // button, as XUNA's popovers sit below the control that opens them.
@@ -165,6 +186,8 @@ module.exports = {
   titleBarColor,
   macAppViewBounds,
   macWindowLayout,
+  windowsWindowLayout,
+  titleBarOverlay,
   headerReport,
   clusterReport,
   rememberedBar,

@@ -183,14 +183,33 @@ reason for it.
 - **The colours are exactly XUNA's header's:** `#030303` in dark mode (the page colour, which
   the header shares there) and white in light mode, so the title bar and the header read as one
   band. They live in `src/config.js` and have to follow the web app if its header changes colour.
-- **Windows' own title bar, recoloured:** black in dark mode, white in
-  light mode. It uses Electron's `accentColor`, which sets Windows' caption colour, rather than
-  a custom-drawn bar, so snapping, dragging and the window menu stay native. This needs
-  Windows 11.
+- **On Windows too, XUNA's header is the title bar (from XUNA AI Beta, 2026-11-02).** Until then
+  Windows kept its own title bar, recoloured with Electron's `accentColor`, above XUNA's header:
+  two bars. The user asked for the single bar on both systems, a little taller (64px) and with
+  search in its middle.
+  - The window hides Windows' title bar (`titleBarStyle: 'hidden'`) and keeps its three buttons in
+    Electron's title bar overlay, given no colour of its own, so XUNA's header shows under them, a
+    dialog's backdrop included, and only their glyphs take XUNA's ink. XUNA's header keeps its
+    controls clear of them with `env(titlebar-area-*)`, which the page reads in its own pixels
+    (`src/one-row.css`). Snapping, double-clicking to maximise and dragging stay Windows' own.
+  - XUNA's page is a view over the window's own page, which is a plain band
+    (`src/window-band.html`). Where XUNA shows no header its page moves below the band and
+    Windows' buttons sit in it, clear of the page's own controls, such as the close button at the
+    top right of XUNA's full-screen flows. Drawing the band in XUNA's page instead would have
+    meant moving those pages, which size themselves to the window.
+  - A header in a view drags the window on Windows, checked with real mouse input on 2026-11-02.
+    Posting hit-test messages to the window says otherwise, and isn't a reliable check.
+  - Without the title bar Windows can't show the menu bar either, so Alt no longer shows it and
+    its Help menu (Check for Updates…, About) was out of reach. Right-clicking the bar's empty
+    space, where Windows would show its window menu, shows the app's menu instead; Alt+Space still
+    shows Windows' own.
+  - Windows keeps its three buttons in full screen, so full screen changes nothing there.
+  - `accentColor` still colours the window's border. Pop-ups keep Windows' own title bar.
+  - No workspace tabs on Windows yet, so the bar's left end is XUNA's own logo.
 - **It follows XUNA's own theme setting, not just the system's.** A sandboxed preload reports the
   page's `color-scheme`. The main process accepts the report only from XUNA pages and maps it
-  to one of the two colours. The only thing the preload gives the page is the push registration
-  (see "Mac").
+  to one of the two colours. The preload gives the page the push registration (see "Mac") and
+  which window's title bar its header is (`window.xunaDesktop.titleBar`).
 - **The colour is applied to every window as it is created,** because Electron otherwise waits
   for the window's first focus and shows Windows' gray until then.
 

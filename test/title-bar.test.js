@@ -11,6 +11,8 @@ const {
   titleBarColor,
   macAppViewBounds,
   macWindowLayout,
+  windowsWindowLayout,
+  titleBarOverlay,
   headerReport,
   clusterReport,
   PICKER_PANEL_WIDTH,
@@ -364,4 +366,46 @@ test("Ask AI follows XUNA's own button in the tab in front: there or not, open o
   assert.deepEqual(askAiState({ available: 1, open: 'yes', colors: [...colors.slice(0, 3), 'url(https://example.com/x)'] }), { available: false, open: false, colors: null });
   assert.deepEqual(askAiState({ available: true, open: false, colors: colors.slice(0, 2) }), { available: true, open: false, colors: null });
   assert.deepEqual(askAiState(undefined), { available: false, open: false, colors: null });
+});
+
+test("on Windows XUNA's header is the bar in one row, from the window's edge, with Windows' buttons the height of the header", () => {
+  const layout = windowsWindowLayout({ width: 1280, height: 820, header: xunaHeader({ height: 64 }) });
+  assert.deepEqual(layout, { mode: 'one-row', page: { x: 0, y: 0, width: 1280, height: 820 }, barHeight: 64 });
+  // Zoomed, the bar grows with XUNA's header.
+  assert.equal(windowsWindowLayout({ width: 1600, height: 820, header: xunaHeader({ height: 64 }), zoom: 1.25 }).barHeight, 80);
+});
+
+test("on Windows a page without XUNA's header, or too narrow for its desktop header, sits below a 40px band that Windows' buttons sit in", () => {
+  const band = { mode: 'strip', page: { x: 0, y: MAC_TITLE_STRIP_HEIGHT, width: 1280, height: 820 - MAC_TITLE_STRIP_HEIGHT }, barHeight: MAC_TITLE_STRIP_HEIGHT };
+  assert.deepEqual(windowsWindowLayout({ width: 1280, height: 820, header: null }), band);
+  assert.equal(windowsWindowLayout({ width: 1000, height: 820, header: xunaHeader() }).mode, 'strip');
+  // A header needing all but 64px of the window leaves too little of it to drag the window by.
+  assert.equal(windowsWindowLayout({ width: 1280, height: 820, header: xunaHeader({ minWidth: 1217 }) }).mode, 'strip');
+  assert.equal(windowsWindowLayout({ width: 1280, height: 820, header: xunaHeader({ minWidth: 1216 }) }).mode, 'one-row');
+});
+
+test("Windows keeps its buttons in full screen, so the bar there is as in a window: XUNA's header, under them", () => {
+  // A full-screen window is laid out as any other, from its size alone.
+  assert.deepEqual(windowsWindowLayout({ width: 1920, height: 1080, header: xunaHeader({ height: 64 }) }), { mode: 'one-row', page: { x: 0, y: 0, width: 1920, height: 1080 }, barHeight: 64 });
+});
+
+test("Windows' buttons sit on nothing of their own, so XUNA's bar shows under them, in XUNA's ink for its theme", () => {
+  assert.deepEqual(titleBarOverlay(BACKGROUND.dark, 64), { color: '#00000000', symbolColor: '#fafafa', height: 64 });
+  assert.deepEqual(titleBarOverlay(BACKGROUND.light, 40), { color: '#00000000', symbolColor: '#0a0a0a', height: 40 });
+  assert.equal(titleBarOverlay(BACKGROUND.dark, 63.6).height, 64);
+  assert.equal(titleBarOverlay(BACKGROUND.dark, 0).height, 1); // Electron refuses no height at all
+});
+
+test("on Windows XUNA's header keeps its controls clear of Windows' buttons while it is the bar, with 8px to spare", () => {
+  const rule = oneRowRule(':root[data-xuna-desktop-row][data-xuna-desktop-caption] [data-xuna-desktop-bar]');
+  assert.match(rule, /padding-inline-end:\s*calc\(100vw - env\(titlebar-area-x, 0px\) - env\(titlebar-area-width, 100vw\) \+ 8px\)\s*!important/);
+});
+
+test("the Windows band drags the window, lets the window's colour through and runs nothing", () => {
+  const band = fs.readFileSync(path.join(__dirname, '..', 'src', 'window-band.html'), 'utf8');
+  assert.match(cssRule(band, 'html'), /(^|[\s;])app-region:\s*drag/);
+  assert.match(cssRule(band, 'html, body'), /background:\s*transparent/);
+  assert.doesNotMatch(band.replace(/<!--[\s\S]*?-->/g, ''), /color-scheme/);
+  assert.match(band, /http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"/);
+  assert.doesNotMatch(band, /<script/);
 });

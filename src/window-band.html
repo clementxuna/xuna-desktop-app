@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+  <title>XUNA AI</title>
+  <!-- The Windows window's own page, under XUNA's (see addWindowsBar in src/main.js). It shows only where
+       XUNA shows no header, as a band above XUNA's page that Windows' three buttons sit in, and drags the
+       window, as Windows' own title bar would. It draws nothing itself: the window's colour, XUNA's black or
+       white, shows through.
+
+       The page declares no colour scheme. Chromium paints a page whose root is in a dark colour scheme
+       with its own grey, #121212, instead of letting the window's colour show through. -->
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; }
+    html { app-region: drag; -webkit-app-region: drag; }
+  </style>
+</head>
+<body></body>
+</html>

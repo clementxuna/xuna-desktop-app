@@ -3,10 +3,12 @@
 // Tells the main process which theme the page is showing, so the window's title bar can match it.
 // XUNA switches theme by setting the color-scheme of <html>, which is all this reads.
 //
-// It runs isolated from the page and gives it one function, window.xunaDesktop.getPushRegistration(),
-// which resolves to where XUNA's servers can send this Mac push notifications:
+// It runs isolated from the page and gives it window.xunaDesktop, with one function and one value.
+// getPushRegistration() resolves to where XUNA's servers can send this Mac push notifications:
 // { platform: 'macos', token, topic, environment }, or null on Windows, in development runs, if Apple
-// refused, or for pages outside xuna.ai (the main process checks).
+// refused, or for pages outside xuna.ai (the main process checks). titleBar says which window's title bar
+// XUNA's header is: 'mac' in a Mac workspace tab, 'windows' in the Windows window, null anywhere else.
+// XUNA then draws its header as the title bar, taller and with search in its middle.
 //
 // In a Mac workspace tab, and in pop-ups a tab opens, it also gives the page the tab's own copy of the
 // storage keys where XUNA remembers the current workspace (see src/workspace-memory.js), and passes on
@@ -14,17 +16,20 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Asked before XUNA's scripts run, so XUNA draws its header the right way from its first frame.
+const titleBar = ipcRenderer.sendSync('xuna:title-bar-page') ?? null;
+
 contextBridge.exposeInMainWorld('xunaDesktop', {
   getPushRegistration: () => ipcRenderer.invoke('xuna:push-registration'),
+  titleBar,
 });
 
 // null for a page that keeps the profile's shared storage: anything outside a workspace tab.
 const workspace = ipcRenderer.sendSync('xuna:workspace-memory');
 if (workspace) keepWorkspaceInTab(workspace);
-if (workspace?.report) {
-  watchAskAi();
-  watchHeader();
-}
+if (workspace?.report) watchAskAi();
+// A Mac workspace tab's page, or the Windows window's: XUNA's header is the title bar there.
+if (workspace?.report || titleBar) watchHeader();
 
 // XUNA redraws often, so its page is looked at again at most five times a second: the function this
 // returns asks for a look, which happens 200ms after the first ask.
@@ -119,7 +124,8 @@ function watchHeader() {
   window.addEventListener('resize', soon);
   document.addEventListener('load', soon, true); // an image arriving, a workspace's logo with no bar say, changes the room the header needs
   ipcRenderer.on('xuna:title-bar-row', (_event, next) => {
-    row = next && Number.isFinite(next.inset) ? { inset: next.inset } : null;
+    // caption: Windows' three buttons sit over the header's right end, which makes room for them.
+    row = next && Number.isFinite(next.inset) ? { inset: next.inset, caption: next.caption === true } : null;
     logo = next?.logo === true;
     applyRow(row, covered, logo);
     soon();
@@ -145,8 +151,12 @@ function describeHeader(header) {
   const box = header.getBoundingClientRect();
   const style = getComputedStyle(header);
   const px = (value) => Number.parseFloat(value) || 0;
-  const parts = [...header.children].map(contentWidth).filter((width) => width > 0);
-  const contents = parts.reduce((sum, width) => sum + width, 0) + px(style.columnGap) * Math.max(0, parts.length - 1);
+  // A part XUNA marks data-xuna-desktop-flex, its search field in the middle, fits whatever room is left,
+  // down to the least it gives there, which is what counts.
+  const flexible = (part) => part.hasAttribute?.('data-xuna-desktop-flex');
+  const flex = [...header.children].filter(flexible).reduce((sum, part) => sum + Math.max(0, px(part.getAttribute('data-xuna-desktop-flex'))), 0);
+  const parts = [...header.children].filter((part) => !flexible(part)).map(contentWidth).filter((width) => width > 0);
+  const contents = parts.reduce((sum, width) => sum + width, 0) + px(style.columnGap) * Math.max(0, parts.length - 1) + flex;
   return {
     height: box.height,
     minWidth: Math.ceil(px(style.paddingLeft) + px(style.paddingRight) + contents),
@@ -179,9 +189,9 @@ function coverOf(header, box) {
   return { filter: style.backdropFilter && style.backdropFilter !== 'none' ? style.backdropFilter : null, tint: style.backgroundColor };
 }
 
-// The main process's row, on <html>: the room made at the header's start, and whether something covers the
-// header (then it doesn't drag the window). Only what differs is written, since each write is a change the
-// page's observers see.
+// The main process's row, on <html>: the room made at the header's start, whether Windows' buttons sit over
+// its end, and whether something covers the header (then it doesn't drag the window). Only what differs is
+// written, since each write is a change the page's observers see.
 function applyRow(row, covered, logo) {
   const root = document.documentElement;
   if (!root) return;
@@ -190,6 +200,7 @@ function applyRow(row, covered, logo) {
   };
   const inset = row ? `${row.inset}px` : '';
   toggle('data-xuna-desktop-row', Boolean(row));
+  toggle('data-xuna-desktop-caption', row?.caption === true);
   toggle('data-xuna-desktop-logo', logo);
   if (root.style.getPropertyValue('--xuna-desktop-row-inset') !== inset) {
     if (row) root.style.setProperty('--xuna-desktop-row-inset', inset);

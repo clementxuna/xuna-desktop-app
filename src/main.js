@@ -8,7 +8,7 @@ const { createPolicy, isSafeExternalUrl, chromeUserAgent, isFromOwnPage } = requ
 const { buildAppMenu, attachContextMenu, tabMenuTemplate } = require('./menus');
 const { createUpdates } = require('./updates');
 const { reloadOnCrash } = require('./reload-on-crash');
-const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macWindowLayout, headerReport, clusterReport, rememberedBar, askAiState } = require('./title-bar');
+const { MAC_TITLE_STRIP_HEIGHT, MAC_TRAFFIC_LIGHTS, titleBarColor, macWindowLayout, windowsWindowLayout, titleBarOverlay, headerReport, clusterReport, rememberedBar, askAiState } = require('./title-bar');
 const { shownTabs } = require('./title-strip-layout');
 const { chooseBounds, readState, writeState } = require('./window-state');
 const { MAX_TABS, labelFor, readTabs, addTab, closeTab, selectTab, cycleTab, renameTab, moveTab, setTabMemory, nameWorkspaces, tabShowing } = require('./workspace-tabs');
@@ -24,7 +24,10 @@ const IS_WINDOWS = process.platform === 'win32';
 // The workspace tabs are Mac only. XUNA_WORKSPACE_TABS=1 shows them in a Windows development run too,
 // under Windows' own title bar, so they can be worked on there.
 const USE_TABS = IS_MAC || (!app.isPackaged && process.env.XUNA_WORKSPACE_TABS === '1');
-// Every XUNA page: the main window's on Windows, each workspace tab's, and with tabs the pop-ups too.
+// On Windows XUNA's header is the title bar, under Windows' own three buttons (see addWindowsBar). A
+// development run showing the tabs keeps Windows' own title bar instead.
+const WINDOWS_BAR = IS_WINDOWS && !USE_TABS;
+// Every XUNA page: the Windows window's, each workspace tab's, and with tabs the pop-ups too.
 const XUNA_PAGE_PREFERENCES = {
   contextIsolation: true,
   sandbox: true,
@@ -32,7 +35,8 @@ const XUNA_PAGE_PREFERENCES = {
   spellcheck: true,
   preload: path.join(__dirname, 'preload.js'),
 };
-// With workspace tabs the window's own page stays empty, under the title strip's view and the XUNA pages'.
+// With workspace tabs the window's own page stays empty, under the title strip's view and the XUNA pages';
+// on Windows it is the band above XUNA's page where XUNA shows no header.
 const WINDOW_PAGE_PREFERENCES = { contextIsolation: true, sandbox: true, nodeIntegration: false };
 // What makes room in XUNA's header for the strip in one row, and hides XUNA's logo while the bar shows its
 // own, put into each tab's page (see src/one-row.css).
@@ -50,6 +54,7 @@ let pushRegistration = Promise.resolve(null); // where XUNA's servers send this 
 // On Mac the XUNA pages are views under the title strip's, one per workspace tab (see addWorkspaceTabs);
 // elsewhere the window's own page shows XUNA.
 const workspaceTabs = new WeakMap(); // Mac main window → its workspace tabs
+const windowBars = new WeakMap(); // Windows main window → its XUNA page under the bar (see addWindowsBar)
 const pageColors = new WeakMap(); // XUNA page → the title bar colour for the theme it last reported
 const guardedSessions = new WeakSet(); // sessions given the permission rules: the default one and each tab's own
 let quitting = false; // a quit the XUNA page is holding up, to finish once the page has closed (macOS)
@@ -91,7 +96,11 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on('xuna:workspace-memory-read', (event) => fromTabPage(event, () => isolationGuard.pageRead(event.sender.id)));
     ipcMain.on('xuna:workspace-list', onWorkspaceList);
     ipcMain.on('xuna:ask-ai-state', (event, report) => fromTabPage(event, (tabs, id) => tabs.setAskAi(id, report)));
-    ipcMain.on('xuna:title-bar-header', (event, report, waiting) => fromTabPage(event, (tabs, id) => tabs.setHeader(id, report, waiting)));
+    ipcMain.on('xuna:title-bar-header', (event, report, waiting) => {
+      fromTabPage(event, (tabs, id) => tabs.setHeader(id, report, waiting));
+      fromBarPage(event, (bar) => bar.setHeader(report, waiting));
+    });
+    ipcMain.on('xuna:title-bar-page', onTitleBarPageRequest);
     guardSession(session.defaultSession);
     if (USE_TABS) {
       removeOldTabProfiles();
@@ -141,14 +150,15 @@ function updateAppMenu(tabs) {
   Menu.setApplicationMenu(buildAppMenu(appContents, tabs, checkForUpdates));
 }
 
-// The page showing XUNA in a window: on Mac the workspace tab shown, otherwise the window's own page.
+// The page showing XUNA in a window: on Mac the workspace tab shown, on Windows the page under the bar,
+// otherwise the window's own page.
 function appContents(win) {
-  return workspaceTabs.get(win)?.activePage() ?? win.webContents;
+  return workspaceTabs.get(win)?.activePage() ?? windowBars.get(win)?.page() ?? win.webContents;
 }
 
-// The window a page is shown in, the XUNA pages of a Mac window's workspace tabs included.
+// The window a page is shown in, the XUNA pages of a Mac window's workspace tabs and of the Windows bar included.
 function windowOf(contents) {
-  return BrowserWindow.getAllWindows().find((win) => win.webContents === contents || workspaceTabs.get(win)?.has(contents)) ?? null;
+  return BrowserWindow.getAllWindows().find((win) => win.webContents === contents || workspaceTabs.get(win)?.has(contents) || windowBars.get(win)?.has(contents)) ?? null;
 }
 
 function openExternal(url) {
@@ -171,6 +181,7 @@ function setTitleBarColor(color) {
   for (const win of BrowserWindow.getAllWindows()) {
     if (IS_WINDOWS) win.setAccentColor(color);
     workspaceTabs.get(win)?.setColor(color); // the tab strip shows the window's background
+    windowBars.get(win)?.setColor(color); // and so does the Windows band, with Windows' buttons in XUNA's ink
   }
 }
 
@@ -220,6 +231,7 @@ function harden(contents) {
       quitting = false; // staying abandons any quit in progress
       afterQuit = null; // a restart for an update included: the update installs at the next quit instead
       tabs?.keepOpen(contents); // and the tab or window close it held up
+      if (owner) windowBars.get(owner)?.keepOpen();
     }
   });
 
@@ -252,25 +264,30 @@ function createMainWindow() {
   const stateFile = path.join(app.getPath('userData'), 'window-state.json');
   const workAreas = screen.getAllDisplays().map((display) => display.workArea);
   const { bounds, maximized } = chooseBounds(readState(stateFile), workAreas, { width: 1280, height: 820 });
-  // With workspace tabs the window opens with the bar as the last one closed with it (rememberedBar in
-  // src/title-bar.js): in XUNA's black or white, and in one row if it was, the three buttons already there.
-  const remembered = USE_TABS ? rememberedBar(readState(titleBarFile())) : null;
+  // With workspace tabs, and on Windows, the window opens with the bar as the last one closed with it
+  // (rememberedBar in src/title-bar.js): in XUNA's black or white, and in one row if it was, the window's
+  // buttons already there.
+  const remembered = USE_TABS || WINDOWS_BAR ? rememberedBar(readState(titleBarFile())) : null;
   if (typeof remembered?.dark === 'boolean') titleBar = remembered.dark ? config.BACKGROUND.dark : config.BACKGROUND.light;
   const lights = remembered ? macWindowLayout({ width: bounds.width, height: bounds.height, fullScreen: false, header: remembered.header, cluster: remembered.cluster }).trafficLights : MAC_TRAFFIC_LIGHTS;
+  const windowsBar = WINDOWS_BAR ? windowsWindowLayout({ width: bounds.width, height: bounds.height, header: remembered?.header }) : null;
 
   const win = new BrowserWindow({
     ...bounds,
     minWidth: 400,
     minHeight: 500,
     title: 'XUNA AI',
-    backgroundColor: (USE_TABS && titleBar) || backgroundColor(),
+    backgroundColor: ((USE_TABS || WINDOWS_BAR) && titleBar) || backgroundColor(),
     ...titleBarOptions(),
     ...(IS_MAC ? { titleBarStyle: 'hidden', trafficLightPosition: lights } : {}),
+    ...(windowsBar ? { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(titleBar || backgroundColor(), windowsBar.barHeight) } : {}),
     autoHideMenuBar: true,
-    // With workspace tabs the title strip and the XUNA pages are views over the window's own page.
-    webPreferences: USE_TABS ? WINDOW_PAGE_PREFERENCES : XUNA_PAGE_PREFERENCES,
+    // With workspace tabs the title strip and the XUNA pages are views over the window's own page, and on
+    // Windows XUNA's page is a view over the band.
+    webPreferences: USE_TABS || WINDOWS_BAR ? WINDOW_PAGE_PREFERENCES : XUNA_PAGE_PREFERENCES,
   });
   if (USE_TABS) addWorkspaceTabs(win, XUNA_PAGE_PREFERENCES, remembered);
+  else if (WINDOWS_BAR) addWindowsBar(win, XUNA_PAGE_PREFERENCES, remembered);
   else showXuna(win.webContents);
   if (maximized) win.maximize();
   win.on('close', () => writeState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() }));
@@ -780,6 +797,142 @@ function addWorkspaceTabs(win, webPreferences, remembered) {
 
   stripPage.loadFile(path.join(__dirname, 'title-strip.html')).catch(() => {});
   refresh();
+}
+
+// On Windows, as on Mac, XUNA's header is the window's title bar wherever XUNA shows it (windowsWindowLayout in
+// src/title-bar.js). The window hides Windows' own title bar and keeps its three buttons, which Windows draws
+// over the right end of XUNA's header in a transparent overlay, so the header shows under them, a dialog's
+// backdrop over it included; the header makes room for them (src/one-row.css). There are no workspace tabs
+// on Windows, so the bar is XUNA's header alone.
+//
+// XUNA's page is a view over the window's own page, a plain band in XUNA's black or white
+// (src/window-band.html). Where XUNA shows no header, as on its sign-in page and in its full-screen flows,
+// XUNA's page moves down below the band, and Windows' buttons sit in it, as in Windows' own title bar, clear
+// of the page's own controls. As on Mac, the window opens with the bar as the last one closed with it, and
+// a page that hasn't shown its header yet, or whose header XUNA has taken away for a moment, keeps the bar's
+// place for it.
+function addWindowsBar(win, webPreferences, remembered) {
+  const view = new WebContentsView({ webPreferences });
+  const page = view.webContents; // held, since view.webContents is undefined once it is destroyed
+  view.setBackgroundColor(titleBar || backgroundColor()); // XUNA's black or white, until XUNA draws
+  win.contentView.addChildView(view);
+  let header = remembered?.header ?? null; // XUNA's header as its page last said, or as the window opened with it
+  let bar = null; // where everything goes (windowsWindowLayout)
+  let overlaySent = ''; // Windows' buttons as last set
+  let rowSent; // what the page was last told about its header (see sendRow)
+  let closing = false; // the window is closing its page
+  const live = () => (page.isDestroyed() ? null : page);
+
+  // Places XUNA's page, fits Windows' buttons to what they sit in, and tells the page whether its header is the bar.
+  const arrange = () => {
+    if (win.isDestroyed()) return;
+    const [width, height] = win.getContentSize();
+    bar = windowsWindowLayout({ width, height, header, zoom: live()?.getZoomFactor() ?? 1 });
+    view.setBounds(bar.page);
+    const overlay = titleBarOverlay(titleBar || backgroundColor(), bar.barHeight);
+    const word = JSON.stringify(overlay);
+    if (word !== overlaySent) {
+      overlaySent = word;
+      win.setTitleBarOverlay(overlay);
+    }
+    sendRow();
+  };
+
+  // In one row XUNA's header makes room at its end for Windows' buttons, and none at its start. The page hears
+  // again only when that changes, or once it has loaded afresh.
+  const sendRow = () => {
+    if (!live()) return;
+    const message = bar?.mode === 'one-row' ? { inset: 0, caption: true } : null;
+    const word = JSON.stringify(message);
+    if (word === rowSent) return;
+    rowSent = word;
+    page.send('xuna:title-bar-row', message);
+  };
+
+  page.on('dom-ready', () => {
+    if (policy.isAppPage(page.getURL())) page.insertCSS(ONE_ROW_CSS).catch(() => {});
+    rowSent = undefined;
+    arrange();
+  });
+  // A page outside XUNA's app, such as the offline page or a payment provider's, has no XUNA header to be the bar.
+  page.on('did-navigate', (_event, url) => {
+    if (policy.isAppPage(url)) return;
+    header = null;
+    arrange();
+  });
+  // The window takes the page's title, as it did when the page was its own (the taskbar shows it), not the band's.
+  page.on('page-title-updated', (_event, title) => win.setTitle(title));
+  win.on('page-title-updated', (event) => event.preventDefault());
+  for (const event of ['resize', 'enter-full-screen', 'leave-full-screen']) win.on(event, arrange);
+  win.on('focus', () => live()?.focus()); // typing goes to XUNA, not the band
+  // Hiding Windows' title bar hides the menu bar Alt showed, and Check for Updates… and About with it.
+  // Right-clicking the bar's empty space, where Windows would show its window menu, shows the app's menu.
+  win.on('system-context-menu', (event) => {
+    event.preventDefault();
+    Menu.getApplicationMenu()?.popup({ window: win });
+  });
+
+  // Closing the window asks XUNA's page first, since it may have unsaved changes (see will-prevent-unload). The
+  // window closes once the page has gone, and the next one opens with the bar as this one leaves it.
+  win.on('close', (event) => {
+    if (!live()) return;
+    event.preventDefault();
+    if (!closing) writeState(titleBarFile(), rememberedBar({ header, cluster: null, dark: titleBar === config.BACKGROUND.dark }));
+    closing = true;
+    page.close({ waitForBeforeUnload: true });
+  });
+  page.once('destroyed', () => {
+    if (!win.isDestroyed()) win.close();
+  });
+
+  windowBars.set(win, {
+    page: live,
+    has: (contents) => contents === page,
+    // What the page says about XUNA's header (see watchHeader in src/preload.js): the header, or none.
+    // waiting: none just now, but XUNA may yet draw it, so the bar keeps its place for it.
+    setHeader: (report, waiting) => {
+      const next = headerReport(report);
+      if (next) header = next;
+      else if (waiting !== true) header = null;
+      arrange();
+    },
+    setColor: (color) => {
+      win.setBackgroundColor(color); // the band
+      arrange(); // Windows' buttons in XUNA's ink for it
+    },
+    // The page answered Stay: the window stays open.
+    keepOpen: () => {
+      closing = false;
+    },
+  });
+
+  win.webContents.loadFile(path.join(__dirname, 'window-band.html')).catch(() => {});
+  arrange();
+  showXuna(page);
+}
+
+// Messages only the Windows window's own XUNA page may send.
+function fromBarPage(event, act) {
+  if (!policy.isAppPage(event.senderFrame?.url)) return;
+  const win = windowOf(event.sender);
+  const bar = win ? windowBars.get(win) : null;
+  if (bar?.has(event.sender)) act(bar);
+}
+
+// What src/preload.js asks as each page starts: which window's title bar XUNA's header is, 'mac' for a Mac
+// workspace tab's page and 'windows' for the Windows window's, or null for any other page, a pop-up's
+// included. XUNA draws its header as the title bar on the strength of it. Answered at once, as the page waits.
+function onTitleBarPageRequest(event) {
+  let answer = null;
+  try {
+    if (policy.isAppPage(event.senderFrame?.url)) {
+      if (tabOf(event.sender)) answer = IS_MAC ? 'mac' : 'windows';
+      else if (windowOf(event.sender) && windowBars.get(windowOf(event.sender))?.has(event.sender)) answer = 'windows';
+    }
+  } catch (error) {
+    console.error('[title bar]', error);
+  }
+  event.returnValue = answer;
 }
 
 // The + button's rectangle as the strip measured it, or null.

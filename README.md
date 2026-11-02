@@ -15,12 +15,15 @@ build from the same code.
     is refused, including for other sites' frames embedded in a XUNA page
   - the app presents a standard Chrome user agent so Google sign-in works
 - The window's title bar follows the app's theme: black in dark mode, white in light mode.
-  `src/preload.js` reports the theme the page shows. On Windows it is Windows' own title bar,
-  recoloured (Windows 11; Windows 10 keeps its standard title bar). On Mac the app hides
-  macOS's title bar, and XUNA's own header is the title bar, in one row: macOS's three buttons,
-  Back and Forward, the workspace tabs and + sit at its left end, and XUNA's header carries on
-  from there. Where XUNA shows no header, as on the sign-in page, a strip of that colour runs
-  above XUNA instead.
+  `src/preload.js` reports the theme the page shows. On Mac and Windows alike the app hides the
+  system's title bar, and XUNA's own header is the title bar, in one row. On Mac, macOS's three
+  buttons, Back and Forward, the workspace tabs and + sit at its left end, and XUNA's header
+  carries on from there. On Windows, XUNA's header runs from the window's edge and Windows'
+  minimise, maximise and close buttons sit over its right end; right-clicking the bar's empty
+  space shows the app's menu, which Windows can't show as a menu bar without its title bar. Where
+  XUNA shows no header, as on the sign-in page, a strip of that colour runs above XUNA instead,
+  with Windows' buttons in it on Windows. The app tells XUNA its header is the title bar
+  (`window.xunaDesktop.titleBar`), and XUNA then draws it 64px tall with search in its middle.
 - On Mac, XUNA's servers can send push notifications through Apple (APNs), and macOS shows
   them even when the app is closed. The app registers with Apple at start-up and gives XUNA
   pages one function, `window.xunaDesktop.getPushRegistration()`, to read where to send
@@ -45,7 +48,7 @@ build from the same code.
 - Installed copies update themselves from this repo's GitHub Releases: they check at
   start-up, every half hour, when the computer wakes, when you come back to XUNA (unless they
   looked in the last five minutes) and from Check for Updates… (in the XUNA AI menu on Mac, the
-  Help menu on Windows), and download in the background. Once an update has
+  Help menu on Windows, which right-clicking the title bar shows), and download in the background. Once an update has
   downloaded, they ask to restart for it, even while XUNA is in use, or by notification if XUNA
   isn't in front. After Later they ask again 4 hours on, and the update installs when the app
   quits (`src/updates.js`).

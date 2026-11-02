@@ -1,5 +1,6 @@
-/* XUNA AI on Mac, in one row (see macWindowLayout in src/title-bar.js and watchHeader in
-   src/preload.js). The main process puts this into every workspace tab's XUNA page, where it does
+/* XUNA AI in one row, on Mac and Windows (see macWindowLayout in src/title-bar.js and watchHeader in
+   src/preload.js). The main process puts this into every workspace tab's XUNA page, and into the
+   Windows window's, where it does
    nothing until the preload marks <html> with data-xuna-desktop-row, or data-xuna-desktop-logo for the
    logo rule below. With data-xuna-desktop-row, XUNA's own header, which the
    preload marks data-xuna-desktop-bar, is the window's title bar: it moves over by the width of the
@@ -17,6 +18,13 @@
   width: calc(100% - var(--xuna-desktop-row-inset, 0px)) !important;
   app-region: drag;
   -webkit-app-region: drag;
+}
+
+/* On Windows the window's own three buttons sit over the header's right end, drawn by Windows in a
+   transparent overlay (see addWindowsBar in src/main.js), and the header keeps its controls clear of them,
+   with 8px to spare. env() gives where the overlay leaves the title bar free, in the page's own pixels. */
+:root[data-xuna-desktop-row][data-xuna-desktop-caption] [data-xuna-desktop-bar] {
+  padding-inline-end: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 8px) !important;
 }
 
 :root[data-xuna-desktop-row] [data-xuna-desktop-bar] > * > *,
