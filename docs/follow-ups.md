@@ -33,6 +33,12 @@ Codemagic group `xuna_mac_release` (see "Mac builds" in the README).
 
 ## Worth doing
 
+- **Try XUNA AI Beta on a Mac.** Beside XUNA AI, check it opens without a warning; the bar matches production's
+  on beta.xuna.ai; the window drags by XUNA's header; tabs, + and Ask AI work; both apps run at once with separate
+  sign-ins; and an update arrives through `beta-latest`.
+- **Add push to beta when XUNA's servers send it.** It needs an App ID `ai.xuna.desktop.beta` with Push
+  Notifications, a Developer ID provisioning profile, an APNs key for that topic and the app's push entitlements,
+  as production has. `MAC_PUSH` in `src/config.js` turns the registration on.
 - **Send push notifications from XUNA's servers.** The Mac app registers with Apple and gives
   XUNA pages its device token, but nothing sends to it yet. See
   [push-notifications.md](push-notifications.md) for the web app and server work.

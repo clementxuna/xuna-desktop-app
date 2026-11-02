@@ -1,0 +1,54 @@
+name: Beta release
+
+# Builds the Windows installer for XUNA AI Beta when a beta tag (beta-v1.2.3) is pushed, and puts it in the one
+# beta-latest release, which installed beta copies update from. See "XUNA AI Beta" in the README.
+#
+# This job only uploads. It never makes a release, so a beta build can't become GitHub's latest release, which
+# is what production copies follow. If beta-latest has gone, the upload fails.
+
+on:
+  push:
+    tags: ['beta-v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beta-release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      # The job never pushes, so the write token is not left in .git/config for install scripts to find.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # electron-builder.beta.js refuses anything but a plain x.y.z, before anything is uploaded.
+      - name: Read the version from the tag
+        shell: bash
+        run: echo "XUNA_BETA_VERSION=${GITHUB_REF_NAME#beta-v}" >> "$GITHUB_ENV"
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Build the installer
+        run: npx electron-builder --win --publish never --config electron-builder.beta.js
+
+      # The manifest goes last, so it never names an installer that isn't there yet.
+      - name: Add the files to the beta-latest release
+        shell: bash
+        run: |
+          gh release upload beta-latest --clobber dist/XUNA-AI-Beta-Setup.exe dist/XUNA-AI-Beta-Setup.exe.blockmap
+          gh release upload beta-latest --clobber dist/latest.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

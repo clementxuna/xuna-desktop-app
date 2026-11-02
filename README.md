@@ -96,6 +96,9 @@ else by accident:
 Only needed when the shell itself changes: its icon, its behaviour, or an Electron
 update. Changes to the web app never need a desktop release.
 
+Production releases come only from `main`: the release stops if the tagged commit isn't on it. XUNA AI Beta
+releases differently (see "XUNA AI Beta").
+
 ```sh
 npm version patch        # or minor: bumps package.json, commits and tags vX.Y.Z
 git push --follow-tags   # GitHub Actions builds the installer and publishes the release
@@ -147,6 +150,78 @@ by the `mac-release` workflow in `codemagic.yaml`, on an Apple silicon Mac mini.
   (see [docs/follow-ups.md](docs/follow-ups.md)).
 - Before uploading, the workflow also opens the signed app, because macOS refuses to open an
   app whose entitlements and provisioning profile don't match, and no signature check shows that.
+
+## XUNA AI Beta
+
+XUNA AI Beta is a second app built from this code. It opens [beta.xuna.ai](https://beta.xuna.ai) and installs
+beside XUNA AI, with its own sign-in, data and updates, so the two can run at once. The BETA pill on its icon is
+the only beta styling. Its name shows in the Dock, the Start menu and the install folder, and inside the app
+everything reads as it does in production. It has no Mac push notifications.
+
+- The `beta` branch is to beta.xuna.ai what `main` is to app.xuna.ai, as in the web app. Shell work for beta goes
+  on `beta`, and nothing there reaches production until it is merged into `main`.
+- Beta's whole identity is in `electron-builder.beta.js`, which takes `package.json`'s build settings and changes
+  only what makes it a different app. `package.json` keeps production's values on both branches, so merging
+  `beta` into `main` can't turn production into beta. In an installed copy, `src/config.js` knows which app it
+  is from the `xunaChannel` that file writes into the packaged `package.json`.
+- People download it from <https://install.xuna.ai/beta>. Direct links:
+  - Windows: <https://github.com/clementxuna/xuna-desktop-app/releases/download/beta-latest/XUNA-AI-Beta-Setup.exe>
+  - Mac: <https://github.com/clementxuna/xuna-desktop-app/releases/download/beta-latest/XUNA-AI-Beta.dmg>
+
+### Release a beta
+
+```sh
+git switch beta
+git tag beta-v1.0.3                # plain x.y.z, higher than the last one
+git push origin beta beta-v1.0.3
+```
+
+- The version comes from the tag, and `package.json`'s version is ignored. Beta's numbers are its own and only go
+  up: installed copies ignore a lower one, and the build refuses anything but `x.y.z`.
+- **Never run `npm version` on `beta` or push a `v*` tag from it.** `release.yml` refuses a `v*` tag on a commit
+  that isn't on `main`, so it wouldn't reach production users, but `package.json` would need putting back.
+- The tag starts two builds. GitHub Actions (`.github/workflows/beta-release.yml`) builds Windows, and Codemagic's
+  `mac-beta-release` workflow builds, signs and notarizes the Mac app with the same secrets as production. Neither
+  waits for the other.
+- Both replace their files in one GitHub release, `beta-latest`, whose address never changes. Installed copies
+  update from it and the download links point at it. It is marked as a pre-release, which keeps GitHub's latest
+  release on production, so production copies never see it. CI can only upload to it, so if it is ever deleted the
+  builds fail. To make it again:
+
+  ```sh
+  gh release create beta-latest --target beta --prerelease --latest=false --title "XUNA AI Beta" --notes "The newest XUNA AI Beta. Each beta build replaces these files."
+  ```
+
+- Older betas' files aren't kept. To undo a bad beta, release a newer one. While a file is replaced, its link can
+  404 for about a minute.
+- A fresh install downloads its first update in full, and only the changes after that.
+
+### Move work between the apps
+
+- A production fix to beta: `git switch beta`, then `git merge main`.
+- Beta's work to production: `git switch main`, `git merge beta`, then release production as usual. The merge
+  doesn't change production's identity or version.
+
+### Work on beta
+
+```powershell
+git switch beta
+$env:XUNA_CHANNEL = 'beta'; npm start   # opens beta.xuna.ai using a separate "XUNA AI Beta Dev" profile
+```
+
+To point that at a local copy of the web app, also set `$env:XUNA_APP_URL = 'http://localhost:5173'`. Installed
+copies ignore both variables.
+
+The title bar depends on a few things in XUNA's page. [docs/beta-web-hooks.md](docs/beta-web-hooks.md) lists them,
+and what to change here when the web app changes one.
+
+### Values that must not change
+
+As for production, `appId` (`ai.xuna.desktop.beta`), `name` (`xuna-beta`), `productName` (`XUNA AI Beta`) and the
+file names key the install folder, notifications, the update cache, saved sign-ins and the download links.
+
+`name` also must not start with `xuna-desktop`, or production's installer would close a running beta: it stops
+every process whose path starts with its install folder. `test/beta.test.js` checks all of these.
 
 ## Download link
 
@@ -206,3 +281,4 @@ Also keep:
 - [docs/decisions.md](docs/decisions.md): why the app is built the way it is.
 - [docs/follow-ups.md](docs/follow-ups.md): Windows code signing, renewal dates and known
   minor issues.
+- [docs/beta-web-hooks.md](docs/beta-web-hooks.md): what the app needs from XUNA's page.

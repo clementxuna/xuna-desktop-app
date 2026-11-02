@@ -14,6 +14,8 @@ const pkg = require('../package.json');
 const FEED = 'https://github.com/clementxuna/xuna-desktop-app/releases/download/beta-latest';
 const beta = betaBuild('1.2.3');
 const pngSize = (file) => fs.readFileSync(path.join(__dirname, '..', file)).readUInt32BE(16);
+const readRepoFile = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');
+const macBeta = () => readRepoFile('codemagic.yaml').split('mac-beta-release:')[1];
 
 test('a copy built without a channel is production', () => {
   assert.deepEqual(identityFor({}), { APP_ID: 'ai.xuna.desktop', APP_URL: 'https://app.xuna.ai', PRODUCT_NAME: 'XUNA AI', MAC_PUSH: true });
@@ -88,4 +90,38 @@ test('beta has icons of the sizes production’s have', () => {
   assert.equal(beta.mac.icon, 'build/icon-mac-beta.png');
   assert.equal(pngSize(beta.win.icon), 512);
   assert.equal(pngSize(beta.mac.icon), 1024);
+});
+
+test('a beta tag builds Windows with the overlay, and can only upload', () => {
+  const workflow = readRepoFile('.github', 'workflows', 'beta-release.yml');
+  assert.match(workflow, /tags: \['beta-v\*'\]/);
+  assert.match(workflow, /electron-builder --win --publish never --config electron-builder\.beta\.js/);
+  assert.match(workflow, /persist-credentials:\s*false/);
+  assert.match(workflow, /gh release upload beta-latest/);
+  assert.doesNotMatch(workflow, /gh release create|--latest|--publish always/);
+  assert.ok(workflow.indexOf('XUNA_BETA_VERSION') < workflow.indexOf('run: npm ci'), 'the tag is read before installing');
+  assert.ok(workflow.indexOf('dist/XUNA-AI-Beta-Setup.exe') < workflow.indexOf('dist/latest.yml'), 'the manifest goes last');
+});
+
+test('a beta tag builds the Mac app with the overlay, checks it, and can only upload', () => {
+  const workflow = macBeta();
+  assert.match(workflow, /pattern: 'beta-v\*'/);
+  assert.match(workflow, /electron-builder --mac --publish never --config electron-builder\.beta\.js/);
+  assert.match(workflow, /xcrun stapler validate/);
+  assert.match(workflow, /CFBundleIdentifier/);
+  assert.match(workflow, /XUNA AI Beta\.app/);
+  assert.doesNotMatch(workflow, /gh release create|--latest|--publish always|aps-environment/);
+  assert.ok(workflow.indexOf('Check the app opens') < workflow.indexOf('gh release upload beta-latest'));
+  assert.ok(workflow.indexOf('dist/XUNA-AI-Beta-mac.zip') < workflow.indexOf('dist/latest-mac.yml'), 'the manifest goes last');
+});
+
+test('a production release stops unless the tagged commit is on main', () => {
+  const workflow = readRepoFile('.github', 'workflows', 'release.yml');
+  assert.match(workflow, /compare\/main\.\.\./);
+  assert.ok(workflow.indexOf('Check the tag is on main') < workflow.indexOf('Check the tag matches package.json'));
+});
+
+test('beta tags match neither production trigger', () => {
+  assert.match(readRepoFile('.github', 'workflows', 'release.yml'), /tags: \['v\*'\]/);
+  assert.match(readRepoFile('codemagic.yaml').split('mac-beta-release:')[0], /pattern: 'v\*'/);
 });

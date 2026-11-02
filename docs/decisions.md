@@ -394,6 +394,39 @@ reason for it.
   - The fades sit above the video, as on the site, so text stays on dark wherever the aurora
     falls.
 
+## XUNA AI Beta
+
+- **A second app, not a setting.** Beta is production's code with another identity, so it installs beside
+  XUNA AI with its own sign-in, data and updates, and a problem in one can't reach the other's users.
+- **One branch per environment,** as in the web app: `main` for app.xuna.ai, `beta` for beta.xuna.ai. A beta web
+  change and the shell change that goes with it live on branches of the same name, and the shell can change on
+  beta without an `if` in production's code.
+- **Identity in one overlay, not in `package.json`.** Editing `package.json` on `beta` would be simpler, but a
+  later merge into `main` would silently take beta's lines wherever `main` hadn't changed them, and beta's edited
+  tests with them. Beta's lower version number would also stop every production update.
+  `electron-builder.beta.js` keeps all of it in a file production's build never reads.
+- **The version comes from the tag,** for the same reason. It also makes a beta release a tag and nothing else.
+- **One release that every beta build replaces.** Production copies read GitHub's latest release, and only one
+  release can be that. electron-updater's GitHub provider doesn't fit a second channel in one repo: with
+  pre-releases on, it takes the newest suitable entry in the repo's feed, production's included, and looks for
+  beta's manifest there. So beta uses the generic provider on `beta-latest`, an address that never changes.
+  - GitHub's file host answers multi-range requests with 501, and the generic provider sends them unless
+    `useMultipleRangeRequest` is false. The GitHub provider turns them off for itself.
+  - The file names hold no version, so electron-updater can't fetch the old blockmap by name. A fresh install's
+    first update downloads in full. After that it uses the blockmap in its cache.
+- **`name` is `xuna-beta`, not `xuna-desktop-beta`.** The Windows install folder comes from `name`, and before it
+  installs, updates or uninstalls, electron-builder's installer stops every process whose path starts with its
+  install folder, with no separator after it (`allowOnlyOneInstallerInstance.nsh`). A folder called
+  `xuna-desktop-beta` starts with production's, so every production update would close a running beta unasked.
+- **The icon is the only beta styling.** The user's decision: the BETA pill goes on the app icon and nothing else
+  in the shell says beta, so with both apps open their update prompts read alike. The name still shows in the Dock,
+  the Start menu and the install folder, because the two apps need different names to install side by side.
+- **No push on beta.** It would need a new App ID, a profile and an APNs key, and neither the production nor the
+  beta web app reads `window.xunaDesktop` yet. Without push the app needs no provisioning profile, so it signs with
+  the helpers' entitlements and nothing was needed in Apple's portal.
+- **`release.yml` checks the tag is on `main`.** GitHub runs a tag's workflow from the tagged commit, so production's
+  release command run by mistake on `beta` would otherwise publish beta's code to every production user.
+
 ## Repository safety
 
 - This repo only pushes to its own GitHub repository. See "Where this repo pushes" in the
