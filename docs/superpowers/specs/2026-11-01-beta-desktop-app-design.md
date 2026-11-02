@@ -278,13 +278,10 @@ This list goes in `docs/`, so it is on hand when the web work starts.
 
 ## Risks still open
 
-1. **Codemagic and tags.** Its docs say a webhook build uses `codemagic.yaml` "from the source
-   branch" but don't say what that means for a tag. The tagged commit's file is the likely answer
-   but isn't confirmed. If `beta-v1.0.0` doesn't start the Mac build, start it by hand from
-   Codemagic's UI on that tag, as was done for v1.6.3. If Codemagic can't see the workflow there
-   either, the workflow has to be in `main`'s `codemagic.yaml`, which needs the user's go.
-2. **First notarization.** Apple's first one for this team took about 34 minutes, later ones about
-   4. A new bundle ID may be slow once. The workflow allows 90 minutes.
+1. **Codemagic and tags.** Answered on 2026-11-01: `beta-v1.0.0` started `mac-beta-release` by
+   itself, so a tag build reads `codemagic.yaml` from the tagged commit.
+2. **First notarization.** Answered on 2026-11-01: the first Mac build with the new bundle ID took
+   about 5 minutes from start to upload.
 3. **Accounts.** The user confirmed that beta and production accounts are separate. Anyone with
    only a production account has to sign up on beta, so the page says the beta has its own sign-in.
 
