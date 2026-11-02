@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download the beta for Mac and Windows | XUNA AI</title>
+  <meta name="description" content="Try XUNA AI Beta on your Mac or Windows PC. It installs next to XUNA AI, has its own sign-in, and updates itself.">
+  <meta property="og:title" content="XUNA AI Beta for Mac and Windows">
+  <meta property="og:description" content="Try XUNA AI Beta on your Mac or Windows PC. It installs next to XUNA AI, has its own sign-in, and updates itself.">
+  <meta property="og:image" content="https://www.xuna.ai/XUNA-og.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" type="image/png" href="/icon-black.png">
+  <link rel="icon" type="image/png" href="/icon-white.png" media="(prefers-color-scheme: dark)">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    // Picks the Mac or Windows version of the page before it is drawn. Phones, tablets and other
+    // systems get a note pointing them to a computer; Apple devices see the Mac version, others Windows.
+    (function () {
+      var ua = navigator.userAgent;
+      var touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1; // iPadOS presents itself as a Mac
+      var mobile = touchMac || /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+      var mac = /Macintosh|iPhone|iPad|iPod/.test(ua);
+      var desktop = !mobile && (mac || /Windows NT/.test(ua));
+      document.documentElement.className = (mac ? 'os-mac' : 'os-windows') + (desktop ? '' : ' os-elsewhere');
+    })();
+  </script>
+  <style>
+    /* Type, colour and the aurora background follow www.xuna.ai. */
+    :root {
+      --ink-muted: rgba(1, 1, 1, 0.55);
+      --white-muted: rgba(255, 255, 255, 0.6);
+      --brand: #2849f7;
+      --hairline: rgba(255, 255, 255, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: #fff;
+      font-family: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+
+    /* One full-screen view: the site's aurora video under the same black and white fades. */
+    .screen {
+      position: relative;
+      overflow: hidden;
+      min-height: 100svh;
+      background: #000 radial-gradient(60% 45% at 72% 82%, rgba(40, 73, 247, 0.55), rgba(40, 73, 247, 0) 62%);
+    }
+    /* Stacking, as on the site: the video, then the black and white fades, then the text. */
+    .screen video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.2); }
+    .screen::before, .screen::after { content: ""; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
+    /* Darkens only the top, behind the headline, so the blue aurora shows from mid-screen down. */
+    .screen::before { top: 0; bottom: 0; background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.7) 18%, rgba(0, 0, 0, 0) 45%); }
+    .screen::after { bottom: 0; height: 24%; background: linear-gradient(rgba(255, 255, 255, 0), #fff 70%); }
+    .inner {
+      position: relative;
+      z-index: 2;
+      max-width: 832px;
+      min-height: 100svh;
+      margin: 0 auto;
+      padding: clamp(96px, 20vh, 220px) 24px 40px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 { margin: 0; font-size: 81.6px; line-height: 1.04; font-weight: 500; letter-spacing: -0.05em; }
+    h1 .accent { color: var(--brand); letter-spacing: -0.02em; }
+    .lede { max-width: 520px; margin: 28px 0 0; color: var(--white-muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 32px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 24px;
+    }
+    .button svg { width: 18px; height: 18px; }
+    .button-primary { background: #fff; color: #010101; }
+    .button-primary:hover { background: rgba(255, 255, 255, 0.88); }
+    .button-ghost {
+      background: rgba(10, 10, 10, 0.4);
+      border-color: var(--hairline);
+      color: #fff;
+      -webkit-backdrop-filter: blur(8px) saturate(1.5);
+      backdrop-filter: blur(8px) saturate(1.5);
+    }
+    .button-ghost:hover { background: rgba(40, 40, 40, 0.5); }
+    /* The note can sit on the aurora's bright crest, so it gets a soft shadow to stay readable. */
+    .note { max-width: 520px; margin: 20px 0 0; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.75); text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6); }
+    .note strong { color: #fff; font-weight: 500; }
+    .note a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+    /* One page for both systems: the script in <head> marks <html> with os-mac or os-windows. */
+    html.os-mac .windows-only, html:not(.os-mac) .mac-only { display: none; }
+    html.os-elsewhere .install-note, html:not(.os-elsewhere) .elsewhere { display: none; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: auto 0 0; padding: 96px 0 0; list-style: none; }
+    .badges li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 16.5px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .badges svg { width: 14px; height: 14px; color: var(--brand); }
+    /* The link at the far end of the badges: to the beta page, and back from it. */
+    .badges .badge-link { margin-left: auto; }
+    .badge-link a:hover { color: #010101; text-decoration: underline; text-underline-offset: 3px; }
+
+    @media (max-width: 800px) {
+      h1 { font-size: clamp(44px, 12vw, 81.6px); }
+    }
+    @media (max-width: 560px) {
+      .button { width: 100%; justify-content: center; }
+      /* Tall, narrow screens crop the video to its centre, which loses most of the blue on its right,
+         and the text runs lower. Shift the crop towards the blue and fade a little further down. */
+      .screen video { object-position: 72% 50%; }
+      .screen::before { background: linear-gradient(#000 0%, rgba(0, 0, 0, 0.7) 28%, rgba(0, 0, 0, 0.3) 58%, rgba(0, 0, 0, 0) 76%); }
+      .screen::after { height: 18%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .screen video { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <video autoplay muted loop playsinline preload="auto" aria-hidden="true">
+      <source src="https://www.xuna.ai/video/hero-bg-v2.mp4" type="video/mp4">
+    </video>
+    <div class="inner">
+      <h1>XUNA AI Beta for <span class="accent mac-only">Mac</span><span class="accent windows-only">Windows</span></h1>
+      <p class="lede">Try what's coming next in XUNA, in its own window. It installs next to XUNA AI, has its own sign-in, and updates itself.</p>
+      <div class="actions">
+        <a class="button button-primary mac-only" href="/beta/download/mac">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+          Download for Mac
+        </a>
+        <a class="button button-primary windows-only" href="/beta/download/windows">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M2 2h7.5v7.5H2zm8.5 0H18v7.5h-7.5zM2 10.5h7.5V18H2zm8.5 0H18V18h-7.5z"/></svg>
+          Download for Windows
+        </a>
+        <!-- The other system's download, as a secondary button. -->
+        <a class="button button-ghost windows-only" href="/beta/download/mac">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+          Download for Mac
+        </a>
+        <a class="button button-ghost mac-only" href="/beta/download/windows">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M2 2h7.5v7.5H2zm8.5 0H18v7.5h-7.5zM2 10.5h7.5V18H2zm8.5 0H18V18h-7.5z"/></svg>
+          Download for Windows
+        </a>
+        <a class="button button-ghost" href="https://beta.xuna.ai">Open in your browser</a>
+      </div>
+      <p class="note install-note mac-only">Open the download and drag <strong>XUNA AI Beta</strong> into <strong>Applications</strong>.</p>
+      <p class="note install-note windows-only">The app isn't code-signed yet. If your browser or Windows warns you, choose <strong>Keep</strong>, then <strong>More info</strong> and <strong>Run anyway</strong>.</p>
+      <p class="note elsewhere">The app is for Mac and Windows computers. Open this page on your computer to install it, or use <a href="https://beta.xuna.ai">XUNA AI Beta in your browser</a> on this device.</p>
+      <ul class="badges mac-only">
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>macOS 13 or later</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Apple silicon &amp; Intel</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>About 230 MB</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Updates automatically</li>
+        <li class="badge-link"><a href="/">Back to XUNA AI</a></li>
+      </ul>
+      <ul class="badges windows-only">
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Windows 10 &amp; 11</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>64-bit</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>About 115 MB</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1 2.5 3v4.2c0 3.3 2.3 6.4 5.5 7.3 3.2-.9 5.5-4 5.5-7.3V3L8 1Zm2.6 5.2-3.2 3.3a.6.6 0 0 1-.9 0L5.1 8.1a.6.6 0 1 1 .9-.9l1 1 2.7-2.8a.6.6 0 0 1 .9.8Z"/></svg>Updates automatically</li>
+        <li class="badge-link"><a href="/">Back to XUNA AI</a></li>
+      </ul>
+    </div>
+  </main>
+</body>
+</html>
