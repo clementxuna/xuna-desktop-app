@@ -25,6 +25,17 @@ workflows:
         GH_REPO: clementxuna/xuna-desktop-app
       node: 24
     scripts:
+      # The production release command run by mistake on the beta branch must publish nothing. release.yml stops
+      # there too, but this workflow would otherwise wait half an hour for a release with its tag's name, and a real
+      # release that reused the name meanwhile would take this build's files. See "Add the Mac files" below.
+      - name: Check the tag is on main
+        script: |
+          if [ -n "${CM_TAG:-}" ]; then
+            status="$(gh api "repos/$GH_REPO/compare/main...$(git rev-parse HEAD)" --jq .status)"
+            echo "Compared with main, this commit is: $status"
+            test "$status" = behind || test "$status" = identical
+          fi
+
       - name: Check the tag matches package.json
         script: |
           if [ -n "${CM_TAG:-}" ]; then

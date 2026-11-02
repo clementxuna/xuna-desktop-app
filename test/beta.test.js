@@ -77,6 +77,11 @@ test('the build refuses anything but a plain x.y.z version', () => {
   assert.equal(betaVersion('1.0.0'), '1.0.0');
 });
 
+test('the build refuses a leading zero, which the updater can’t read, so an install could never update', () => {
+  for (const bad of ['01.2.3', '1.02.3', '1.2.03']) assert.throws(() => betaVersion(bad), /x\.y\.z/, bad);
+  for (const good of ['0.0.1', '1.0.0', '10.20.30']) assert.equal(betaVersion(good), good);
+});
+
 test('everything else is built as production is', () => {
   for (const key of ['copyright', 'files', 'directories', 'electronFuses']) assert.deepEqual(beta[key], pkg.build[key], key);
   assert.equal(beta.nsis.oneClick, true);
@@ -115,10 +120,14 @@ test('a beta tag builds the Mac app with the overlay, checks it, and can only up
   assert.ok(workflow.indexOf('dist/XUNA-AI-Beta-mac.zip') < workflow.indexOf('dist/latest-mac.yml'), 'the manifest goes last');
 });
 
-test('a production release stops unless the tagged commit is on main', () => {
-  const workflow = readRepoFile('.github', 'workflows', 'release.yml');
-  assert.match(workflow, /compare\/main\.\.\./);
-  assert.ok(workflow.indexOf('Check the tag is on main') < workflow.indexOf('Check the tag matches package.json'));
+test('both production builds stop unless the tagged commit is on main', () => {
+  const windows = readRepoFile('.github', 'workflows', 'release.yml');
+  const mac = readRepoFile('codemagic.yaml').split('mac-beta-release:')[0];
+  for (const workflow of [windows, mac]) {
+    assert.match(workflow, /compare\/main\.\.\./);
+    assert.match(workflow, /test "\$status" = behind \|\| test "\$status" = identical/);
+    assert.ok(workflow.indexOf('Check the tag is on main') < workflow.indexOf('Check the tag matches package.json'));
+  }
 });
 
 test('beta tags match neither production trigger', () => {

@@ -178,8 +178,9 @@ git push origin beta beta-v1.0.3
 
 - The version comes from the tag, and `package.json`'s version is ignored. Beta's numbers are its own and only go
   up: installed copies ignore a lower one, and the build refuses anything but `x.y.z`.
-- **Never run `npm version` on `beta` or push a `v*` tag from it.** `release.yml` refuses a `v*` tag on a commit
-  that isn't on `main`, so it wouldn't reach production users, but `package.json` would need putting back.
+- **Never run `npm version` on `beta` or push a `v*` tag from it.** Both production builds refuse a `v*` tag on a
+  commit that isn't on `main`, so it wouldn't reach production users, but `package.json` would need putting back,
+  and before reusing the tag's name, check that no Codemagic build is still running for it.
 - The tag starts two builds. GitHub Actions (`.github/workflows/beta-release.yml`) builds Windows, and Codemagic's
   `mac-beta-release` workflow builds, signs and notarizes the Mac app with the same secrets as production. Neither
   waits for the other.

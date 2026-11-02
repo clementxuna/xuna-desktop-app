@@ -424,8 +424,10 @@ reason for it.
 - **No push on beta.** It would need a new App ID, a profile and an APNs key, and neither the production nor the
   beta web app reads `window.xunaDesktop` yet. Without push the app needs no provisioning profile, so it signs with
   the helpers' entitlements and nothing was needed in Apple's portal.
-- **`release.yml` checks the tag is on `main`.** GitHub runs a tag's workflow from the tagged commit, so production's
-  release command run by mistake on `beta` would otherwise publish beta's code to every production user.
+- **Both production builds check the tag is on `main`.** GitHub runs a tag's workflow from the tagged commit, so
+  production's release command run by mistake on `beta` would otherwise publish beta's code to every production
+  user. `mac-release` checks too, because it waits half an hour for a release with its tag's name, and a real
+  release that reused the name meanwhile would take that build's files.
 
 ## Repository safety
 

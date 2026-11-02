@@ -127,7 +127,8 @@ fix has to be on beta's side, and before `beta-v1.0.0`, because reinstalls reuse
 the registry and a later rename wouldn't move existing copies.
 
 The overlay refuses to build without a plain `x.y.z` version. A pre-release suffix would make
-electron-builder write `beta.yml` instead of `latest.yml` and change the updater's behaviour.
+electron-builder write `beta.yml` instead of `latest.yml` and change the updater's behaviour, and
+the updater can't read a version with a leading zero.
 
 `extraMetadata` also writes `"xunaChannel": "beta"` into the packaged `package.json`.
 `src/config.js` reads that field and answers `APP_ID`, `APP_URL`, `PRODUCT_NAME` and whether Mac
@@ -210,9 +211,10 @@ The two builds don't wait for each other, since the release already exists.
 
 Production's release command, `npm version patch && git push --follow-tags`, run on `beta` by
 mistake would put a `v*` tag on beta code, and GitHub would run the workflow from that commit. So
-on `beta`, `release.yml` gains one step, before anything else: stop unless the tagged commit is
-on `main`. Only that job creates releases, so Codemagic then finds no release to add to and
-uploads nothing. The step reaches `main` with the first merge of `beta`, and passes there.
+on `beta`, `release.yml` and `mac-release` each gain one step, before anything else: stop unless
+the tagged commit is on `main`. The Mac job needs it as well because it waits half an hour for a
+release with its tag's name, and a real release that reused the name meanwhile would take that
+build's files. The steps reach `main` with the first merge of `beta`, and pass there.
 
 ### Mac signing
 

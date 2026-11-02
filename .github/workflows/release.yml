@@ -29,8 +29,7 @@ jobs:
           node-version: 24
 
       # GitHub runs this file from the tagged commit, so it is on the beta branch too, where the production
-      # release command run by mistake must publish nothing. Only this job creates releases, so Codemagic
-      # then has no release to add to.
+      # release command run by mistake must publish nothing. mac-release in codemagic.yaml has the same check.
       - name: Check the tag is on main
         shell: bash
         run: |

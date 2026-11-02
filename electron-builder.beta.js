@@ -23,9 +23,10 @@ const FEED = 'https://github.com/clementxuna/xuna-desktop-app/releases/download/
 const ENTITLEMENTS = 'build/entitlements.mac.inherit.plist';
 
 // A suffix such as -rc.1 would make electron-builder write beta.yml instead of latest.yml, which installed
-// copies don't read, so a bad tag stops the build here, before anything is uploaded.
+// copies don't read, and the updater can't read a version with a leading zero, so an install of one could never
+// update. So a bad tag stops the build here, before anything is uploaded.
 function betaVersion(value) {
-  if (typeof value !== 'string' || !/^\d+\.\d+\.\d+$/.test(value)) {
+  if (typeof value !== 'string' || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value)) {
     throw new Error(`Beta versions are plain x.y.z, from a tag like beta-v1.2.3 (XUNA_BETA_VERSION). Got: ${JSON.stringify(value)}`);
   }
   return value;
