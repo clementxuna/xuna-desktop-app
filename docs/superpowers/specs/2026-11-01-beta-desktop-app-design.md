@@ -60,7 +60,8 @@ Decided by the user:
 How that last line is applied: the web app's repo is read only, on every branch. This design
 also never pushes to `main` of this repo. The download page has to reach `main` to go live,
 because install.xuna.ai deploys from there, so that part is a pull request for the user to merge
-(see "Download page").
+(see "Download page"). On 2026-11-02 the user clarified that the rule was about the web app's repo
+and that pushing live to this repo is fine, and the pull request was merged on that word.
 
 From earlier in the project:
 
